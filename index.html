@@ -24,8 +24,11 @@
 
   #panzone {
     position: absolute; inset: 0;
-    cursor: grab;
+    cursor: default;
   }
+  /* Grab cursor only appears while Shift is held (the pan modifier);
+     grabbing while an actual pan drag is in progress. */
+  body.shift-held #panzone { cursor: grab; }
   #panzone.panning { cursor: grabbing; }
 
   /* Placed item */
@@ -58,7 +61,9 @@
 
   /* Creator */
   .creator { position: absolute; width: 0; height: 0; z-index: 50; }
-  .creator input.text {
+  /* Shared look for both the single-line input variant and the wrapping
+     textarea used by the main creator. */
+  .creator .text {
     position: absolute; transform: translate(-50%, -50%);
     font-family: 'Bangers', cursive;
     font-size: 26px; letter-spacing: 1.5px; text-transform: uppercase;
@@ -67,13 +72,46 @@
     border: 2px dashed rgba(0,0,0,0.4);
     border-radius: 6px;
     padding: 10px 20px;
-    outline: none; min-width: 220px;
+    outline: none;
+    min-width: 220px;
+    box-sizing: border-box;
   }
-  .creator input.text::placeholder { color: rgba(0,0,0,0.28); }
-  .creator.selected input.text {
+  /* Textarea variant: wraps long copy across multiple lines instead of
+     shrinking or scrolling off-screen. Width is capped so it stays a
+     readable column; height grows automatically via JS as the user types. */
+  .creator textarea.text {
+    max-width: 520px;
+    min-height: 56px;
+    resize: none;
+    overflow: hidden;
+    line-height: 1.2;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-weight: normal;
+    display: block;
+  }
+  .creator .text::placeholder { color: rgba(0,0,0,0.28); }
+  .creator.selected .text {
     border-color: #4a90e2;
     box-shadow: 0 0 0 3px rgba(74,144,226,0.25);
   }
+  .creator .creator-hint {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    transform: translate(-50%, -64px);
+    font-family: 'Bangers', cursive;
+    font-size: 15px;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: rgba(74,144,226,0.85);
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  /* Hint only appears once the user has typed something. */
+  .creator.typing .creator-hint { opacity: 1; }
 
   #toast {
     position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%);
@@ -122,18 +160,11 @@
   }
   .side-btn svg { width: 18px; height: 18px; display: block; }
   body.sidebar-collapsed .side-btn { right: 12px; }
-  #sidebar-toggle    { top: 12px; }
-  #clipboard-toggle  { top: 56px; }
-  #help-button       { top: 100px; }
+  #sidebar-toggle { top: 12px; }
+  #help-button    { top: 56px; }
 
   body:not(.sidebar-collapsed) #sidebar-toggle .icon-menu { display: none; }
   body.sidebar-collapsed #sidebar-toggle .icon-close { display: none; }
-
-  /* Clipboard toggle: OFF (default) shows a slash across the icon;
-     hovering hints that pressing it will start auto-copying. */
-  #clipboard-toggle .cb-slash { display: block; }
-  #clipboard-toggle.on .cb-slash { display: none; }
-  #clipboard-toggle.on { color: #4a90e2; border-color: rgba(74,144,226,0.5); }
 
   /* Help modal */
   #help-modal {
@@ -260,7 +291,7 @@
   }
 </style>
 </head>
-<body>
+<body class="sidebar-collapsed">
 
 <div id="panzone"></div>
 <div id="world"></div>
@@ -275,14 +306,6 @@
   </svg>
   <svg class="icon-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
     <polyline points="9 6 15 12 9 18"/>
-  </svg>
-</button>
-
-<button id="clipboard-toggle" class="side-btn" aria-label="Auto-copy selection to clipboard" title="Auto-copy selection to clipboard">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <rect x="8" y="3" width="8" height="4" rx="1"/>
-    <path d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
-    <line class="cb-slash" x1="4" y1="20" x2="20" y2="4"/>
   </svg>
 </button>
 
@@ -303,7 +326,6 @@
       <li><kbd>Double-click</kbd> empty space to open a text creator; press <kbd>Enter</kbd> to materialize the ring.</li>
       <li><kbd>Drag</kbd> on empty background to marquee-select items (and creators).</li>
       <li><kbd>Shift-drag</kbd> or two-finger scroll to pan. Pinch to zoom.</li>
-      <li>Zoom out then double-click for bigger items — sizes track the current zoom.</li>
     </ul>
     <h3>Items</h3>
     <ul>
@@ -314,9 +336,9 @@
     </ul>
     <h3>Clipboard</h3>
     <ul>
-      <li><kbd>⌘C</kbd> / <kbd>Ctrl-C</kbd> copies the selected item as a PNG (always available).</li>
-      <li>Toggle the clipboard button (top-right) to make selections auto-copy — off by default.</li>
-      <li><kbd>⌘V</kbd> paste image files onto the canvas.</li>
+      <li>Clicking any item copies it to the clipboard as a PNG. So does cycling colour/font, resizing, or committing a text edit.</li>
+      <li><kbd>⌘C</kbd> / <kbd>Ctrl-C</kbd> also copies the currently selected item.</li>
+      <li><kbd>⌘V</kbd> pastes image files onto the canvas.</li>
     </ul>
     <h3>Delete &amp; reset</h3>
     <ul>
@@ -457,9 +479,6 @@
     selectedCreators: [],
     currentBank: 0,
     nextId: 1,
-    // OFF by default: nothing touches the clipboard unless the user hits
-    // ⌘C or explicitly toggles the auto-copy button on.
-    autoCopy: false,
   };
   const MIN_ZOOM = 0.15;
   const MAX_ZOOM = 5;
@@ -470,7 +489,6 @@
   const marquee = document.getElementById('marquee');
   const sidebarEl = document.getElementById('sidebar');
   const sidebarToggle = document.getElementById('sidebar-toggle');
-  const clipboardToggle = document.getElementById('clipboard-toggle');
   const helpButton = document.getElementById('help-button');
   const helpModal = document.getElementById('help-modal');
   let toastTimer;
@@ -480,12 +498,6 @@
   }
   function primarySelected() {
     return state.selection.length === 1 ? state.selection[0] : null;
-  }
-  // Guarded copy — every auto-copy site funnels through here so flipping
-  // state.autoCopy off truly means "hands off my clipboard". ⌘C still calls
-  // copyItem directly since that's user-initiated.
-  function maybeCopyItem(item) {
-    if (state.autoCopy && item) copyItem(item);
   }
 
   // Rough interior text-area margins per style (px), used only for smart-sizing.
@@ -672,10 +684,21 @@
   // font silently fails because the input still owns the keystroke.
   document.addEventListener('mousedown', (e) => {
     const t = e.target;
-    if (t && t.tagName === 'INPUT') return;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
     const ae = document.activeElement;
-    if (ae && ae.tagName === 'INPUT') ae.blur();
+    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) ae.blur();
   }, true);
+
+  // Track Shift so the panzone cursor swaps to a grab hand only while the
+  // pan modifier is actually held. Reset on blur so a Shift-then-tab-away
+  // sequence doesn't leave the cursor stuck in grab mode.
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Shift') document.body.classList.add('shift-held');
+  });
+  window.addEventListener('keyup', (e) => {
+    if (e.key === 'Shift') document.body.classList.remove('shift-held');
+  });
+  window.addEventListener('blur', () => document.body.classList.remove('shift-held'));
 
   // Space-tap navigation: double-tap pans down a full viewport (so the
   // current work scrolls off-top and a fresh area is visible below), triple-
@@ -708,7 +731,8 @@
 
   document.addEventListener('keydown', (e) => {
     // If focus is in an input, its own listener owns Enter/Escape.
-    const activeInput = document.activeElement && document.activeElement.tagName === 'INPUT';
+    const ae = document.activeElement;
+    const activeInput = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA');
     if (activeInput) return;
 
     // Space taps: 2× = new page (scroll fresh area into view), 3× = clear all.
@@ -780,15 +804,28 @@
   //  CREATOR — multiple can coexist; new double-clicks add, never remove.
   // =====================================================================
 
-  function openCreator(x, y) {
+  function openCreator(x, y, opts) {
     const el = document.createElement('div');
     el.className = 'creator';
     el.style.left = x + 'px';
     el.style.top  = y + 'px';
 
-    const input = document.createElement('input');
+    if (opts && opts.hint) {
+      const hintEl = document.createElement('div');
+      hintEl.className = 'creator-hint';
+      hintEl.textContent = opts.hint;
+      el.appendChild(hintEl);
+    }
+
+    // Wrapping textarea so long text stays readable at full size instead
+    // of getting compressed / scrolled inside a single-line input. The
+    // element auto-grows as the user types (see autoGrowTextarea).
+    const input = document.createElement('textarea');
     input.className = 'text';
     input.placeholder = 'TYPE...';
+    input.rows = 1;
+    input.spellcheck = false;
+    input.autocapitalize = 'characters';
     el.appendChild(input);
 
     world.appendChild(el);
@@ -797,6 +834,11 @@
     state.creators.push(creator);
 
     input.addEventListener('input', () => {
+      // Reveal the hint only once there's text in the box — an empty input
+      // gets no hint at all.
+      if (input.value.length > 0) el.classList.add('typing');
+      else el.classList.remove('typing');
+      autoGrowTextarea(input);
       if (!creator.items.length) return;
       const text = creator.input.value.trim() || 'HELLO';
       creator.items.forEach(item => {
@@ -806,7 +848,9 @@
     });
 
     input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
+      // Plain Enter commits & materializes; Shift-Enter inserts an actual
+      // newline in the text (handy for narrator/body-text paragraphs).
+      if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         state.currentBank = pickBankForText(creator.input.value);
         materializeRing(creator);
@@ -820,8 +864,18 @@
       }
     });
 
-    setTimeout(() => input.focus(), 0);
+    setTimeout(() => {
+      input.focus();
+      autoGrowTextarea(input);
+    }, 0);
     return creator;
+  }
+
+  // Resize a textarea's height to fit its content — used by the creator so
+  // long / wrapped text stays fully visible while the user is composing.
+  function autoGrowTextarea(ta) {
+    ta.style.height = 'auto';
+    ta.style.height = ta.scrollHeight + 'px';
   }
 
   function dismissCreator(creator) {
@@ -837,26 +891,22 @@
     const text = creator.input.value.trim() || 'HELLO';
     const styleKeys = STYLE_BANKS[state.currentBank];
     const N = styleKeys.length;
-    // Sizes are computed at zoom=1, then scaled inversely by the current
-    // zoom so the ring stays the SAME apparent size on screen regardless of
-    // how zoomed out (or in) the user is. Practical upshot: zoom out and
-    // double-click to get bigger world-space items; zoom in for smaller ones.
-    const zoomFactor = 1 / state.zoom;
-    const sizes = styleKeys.map(key => {
-      const s = smartSize(key, text);
-      return { w: s.w * zoomFactor, h: s.h * zoomFactor };
-    });
+    const sizes = styleKeys.map(key => smartSize(key, text));
 
-    // Guaranteed-no-overlap ring — see original comment. Gap and floor
-    // scale with the same zoom factor so proportions stay consistent.
-    const gap = 36 * zoomFactor;
+    // Guaranteed-no-overlap ring:
+    //   Treat each item as a circle of radius = half its bounding-box diagonal.
+    //   Chord between two neighbours on a circle of radius R is 2R·sin(π/N);
+    //   require that chord ≥ r_i + r_{i+1} + gap for every adjacent pair.
+    // Items keep their natural size — if the ring is bigger than the
+    // viewport, we auto-zoom-out (below) rather than crush the items.
+    const gap = 36;
     const halfDiag = sizes.map(s => 0.5 * Math.hypot(s.w, s.h));
     let maxPairChord = 0;
     for (let i = 0; i < N; i++) {
       const j = (i + 1) % N;
       maxPairChord = Math.max(maxPairChord, halfDiag[i] + halfDiag[j] + gap);
     }
-    const R = Math.max(160 * zoomFactor, maxPairChord / (2 * Math.sin(Math.PI / N)));
+    const R = Math.max(160, maxPairChord / (2 * Math.sin(Math.PI / N)));
 
     styleKeys.forEach((key, i) => {
       const style = STYLES[key];
@@ -877,8 +927,13 @@
       creator.items.push(item);
     });
 
-    // Keep the user's zoom — scaling handled the fit — but recenter the
-    // viewport on the creator so the fresh ring is always in-frame.
+    // Auto-zoom + recenter so the entire ring is visible with breathing room.
+    // Users can still pinch-zoom in afterwards; this just makes the initial
+    // reveal fit on screen no matter how long the text is.
+    const maxHalfExt = Math.max(...sizes.map(s => Math.max(s.w, s.h) / 2));
+    const need = 2 * (R + maxHalfExt) + 80;
+    const targetZoom = Math.min(1, window.innerWidth / need, window.innerHeight / need);
+    state.zoom = Math.max(MIN_ZOOM, targetZoom);
     state.panX = window.innerWidth  / 2 - creator.x * state.zoom;
     state.panY = window.innerHeight / 2 - creator.y * state.zoom;
     applyTransform();
@@ -1039,18 +1094,11 @@
   function setSelection(items) {
     const next = Array.isArray(items) ? items.filter(Boolean) : (items ? [items] : []);
     const nextSet = new Set(next);
-    const prevPrimary = state.selection.length === 1 ? state.selection[0] : null;
     for (const it of state.selection) {
       if (!nextSet.has(it)) it.el.classList.remove('selected');
     }
     for (const it of next) it.el.classList.add('selected');
     state.selection = next;
-    // Auto-copy mode: whenever the primary single-selection changes to a
-    // new item, push it to the clipboard. Skip when the same item stays
-    // primary so rapid re-selects don't spam clipboard.write.
-    if (state.autoCopy && next.length === 1 && next[0] !== prevPrimary) {
-      copyItem(next[0]);
-    }
   }
 
   function setCreatorSelection(creators) {
@@ -1093,14 +1141,14 @@
     if (item.type !== 'style') return;
     item.fillIndex = (item.fillIndex + dir + COLORS.length) % COLORS.length;
     redrawItem(item);
-    maybeCopyItem(item);
+    copyItem(item);
   }
 
   function cycleFont(item, dir) {
     if (item.type !== 'style') return;
     item.fontIndex = (item.fontIndex + dir + FONTS.length) % FONTS.length;
     redrawItem(item);
-    maybeCopyItem(item);
+    copyItem(item);
   }
 
   // ---------- Drag (move) ----------
@@ -1131,7 +1179,7 @@
       window.removeEventListener('mousemove', move);
       window.removeEventListener('mouseup', up);
       // Preserve the classic click-to-copy affordance for single items only.
-      if (!moved && draggables.length === 1) maybeCopyItem(item);
+      if (!moved && draggables.length === 1) copyItem(item);
     }
     window.addEventListener('mousemove', move);
     window.addEventListener('mouseup', up);
@@ -1182,7 +1230,7 @@
     function up() {
       window.removeEventListener('mousemove', move);
       window.removeEventListener('mouseup', up);
-      maybeCopyItem(item);
+      copyItem(item);
     }
     window.addEventListener('mousemove', move);
     window.addEventListener('mouseup', up);
@@ -1374,14 +1422,17 @@
     const rx = W / 2 - 30 * s;
     const ry = (bodyBottom - bodyTop) / 2 - 6 * s;
 
-    // Chunky puffs — bigger than before so each bump reads clearly.
-    const puffR = Math.min(rx, ry) * 0.34;
+    // Puff count / positions are locked to a modest radius so the ring of
+    // centers stays put; the actual draw radius (puffR) is inflated so the
+    // outer circles read as chunky cumulus without shifting any of them.
+    const positionR = Math.min(rx, ry) * 0.34;
     const perim = Math.PI * (3 * (rx + ry) - Math.sqrt((3 * rx + ry) * (rx + 3 * ry)));
-    const puffs = Math.max(10, Math.round(perim / (puffR * 1.45)));
+    const puffs = Math.max(10, Math.round(perim / (positionR * 1.45)));
     // Rotate the starting puff so the top-center puff sits at 12 o'clock —
     // reads better than an off-center gap at the top.
     const rot = -Math.PI / 2 - (Math.PI / puffs);
     const positions = ellipsePuffPositions(rx, ry, puffs, rot);
+    const puffR = Math.min(rx, ry) * 0.46;
 
     const tailX = cx - rx * 0.55;
     const tailY0 = cy + ry + puffR * 0.6;
@@ -1780,13 +1831,15 @@
     const rx = W / 2 - 22 * s;
     const ry = (bodyBottom - bodyTop) / 2 - 4 * s;
 
-    // Silver-Age scallops: small + numerous, arc-length spaced so wide
-    // ovals stay evenly bumpy.
-    const scallR = Math.min(rx, ry) * 0.15;
+    // Same trick as drawThought — count and positions come from a modest
+    // radius so nothing moves, but the drawn scallops (scallR) are larger
+    // so each bump reads more clearly on the silhouette.
+    const positionR = Math.min(rx, ry) * 0.15;
     const perim = Math.PI * (3 * (rx + ry) - Math.sqrt((3 * rx + ry) * (rx + 3 * ry)));
-    const scallops = Math.max(20, Math.round(perim / (scallR * 1.5)));
+    const scallops = Math.max(20, Math.round(perim / (positionR * 1.5)));
     const rot = -Math.PI / 2 - (Math.PI / scallops);
     const positions = ellipsePuffPositions(rx, ry, scallops, rot);
+    const scallR = Math.min(rx, ry) * 0.22;
 
     const tailX = cx - rx * 0.55;
     const tailY0 = cy + ry + scallR * 0.6;
@@ -2454,10 +2507,7 @@
     });
     selectItem(item);
     attachEditor(item, text);
-    // Only push to the clipboard if the user has opted in via the
-    // clipboard-toggle button (state.autoCopy). Otherwise the sidebar spawn
-    // stays silent and they can copy explicitly with ⌘C.
-    maybeCopyItem(item);
+    copyItem(item);
   }
 
   // Floating text input pinned above a shelf-spawned item so its text can be
@@ -2492,7 +2542,7 @@
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
-        maybeCopyItem(item);
+        copyItem(item);
         // Blur so global keyboard shortcuts (arrow-key font cycle, Space
         // navigation, etc.) start working right after committing the text.
         input.blur();
@@ -2521,7 +2571,7 @@
   // Prefer text from a focused creator, then selected item's text, else HELLO.
   function getActiveText() {
     const ae = document.activeElement;
-    if (ae && ae.tagName === 'INPUT' && ae.classList.contains('text')) {
+    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA') && ae.classList.contains('text')) {
       const v = ae.value.trim();
       if (v) return v;
     }
@@ -2603,7 +2653,12 @@
   // =====================================================================
   document.fonts.ready.then(() => {
     renderSidebarChips();
-    openCreator((window.innerWidth - getSidebarWidth()) / 2, window.innerHeight / 2);
+    // First-load only: once the user has typed something, a small hint
+    // above the input reminds them to press Enter. The hint stays hidden
+    // while the box is empty.
+    openCreator((window.innerWidth - getSidebarWidth()) / 2, window.innerHeight / 2, {
+      hint: 'hit ↵ to place',
+    });
   });
 
   // Sidebar collapse toggle
@@ -2611,21 +2666,6 @@
   sidebarToggle.addEventListener('click', (e) => {
     e.stopPropagation();
     document.body.classList.toggle('sidebar-collapsed');
-  });
-
-  // Clipboard auto-copy toggle — starts OFF (strike-through visible).
-  clipboardToggle.addEventListener('mousedown', (e) => e.stopPropagation());
-  clipboardToggle.addEventListener('click', (e) => {
-    e.stopPropagation();
-    state.autoCopy = !state.autoCopy;
-    clipboardToggle.classList.toggle('on', state.autoCopy);
-    showToast(state.autoCopy ? 'Auto-copy on' : 'Auto-copy off');
-    // Turning it on should feel immediate: push the current single
-    // selection to the clipboard right away, so the user sees the effect.
-    if (state.autoCopy) {
-      const p = primarySelected();
-      if (p) copyItem(p);
-    }
   });
 
   // Help modal
