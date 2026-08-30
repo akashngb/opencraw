@@ -1,0 +1,12 @@
+.DS_Store
+.vercel
+.env*
+node_modules/
+
+# Data payloads — not versioned
+*.json
+!package.json
+!vercel.json
+
+# Source reference PDF
+*.pdf

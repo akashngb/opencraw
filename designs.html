@@ -1,0 +1,3474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Comic Designs</title>
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Bungee&family=Comic+Neue:ital,wght@0,700;1,700&family=Permanent+Marker&family=Luckiest+Guy&family=Creepster&family=Rock+Salt&family=Modak&family=Titan+One&family=Sigmar&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  html, body {
+    margin: 0; padding: 0; height: 100%; width: 100%;
+    background: #1c1a17;
+    font-family: system-ui, -apple-system, sans-serif;
+    color: #e8e4d8;
+    overflow: hidden;
+    user-select: none; -webkit-user-select: none;
+  }
+
+  #app {
+    position: relative;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+  }
+
+  /* Editable pre-placed SVG bubble editor overlay */
+  .tpl-editor {
+    position: absolute;
+    z-index: 90;
+    pointer-events: auto;
+    box-sizing: border-box;
+  }
+  .tpl-editor textarea {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    /* WYSIWYG — textarea is TRANSPARENT so the actual SVG bubble style shows
+       through while typing. All look-and-feel (font, colour, alignment) is
+       set inline per-bubble by openTemplateEditor(). */
+    background: transparent;
+    border: none;
+    padding: 0;
+    line-height: 1.15;
+    resize: none;
+    outline: none;
+    box-sizing: border-box;
+    font-weight: 700;
+  }
+  /* A very faint dashed ring around the editor to indicate edit mode. */
+  .tpl-editor::before {
+    content: '';
+    position: absolute; inset: -3px;
+    border: 2px dashed rgba(74,144,226,0.7);
+    border-radius: 4px;
+    pointer-events: none;
+  }
+  .tpl-editor .tpl-controls { cursor: move; }
+  .tpl-editor .tpl-controls {
+    position: absolute;
+    top: -32px; left: 0;
+    display: flex;
+    gap: 3px;
+    background: #201d1a;
+    border: 1px solid #302b26;
+    border-radius: 4px;
+    padding: 3px;
+    z-index: 95;
+    white-space: nowrap;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+  }
+  .tpl-editor .tpl-btn {
+    background: #2f2a24;
+    color: #cec5b8;
+    border: 1px solid #4a4238;
+    border-radius: 3px;
+    padding: 3px 7px;
+    cursor: pointer;
+    font-family: system-ui;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+  .tpl-editor .tpl-btn:hover { background: #fdf23f; color: #201d1a; }
+  .tpl-editor .tpl-btn.active { background: #fdf23f; color: #201d1a; }
+  .tpl-editor .tpl-btn.danger { color: #ff6b57; }
+  .tpl-editor .tpl-btn.danger:hover { background: #ff6b57; color: #fff; }
+  .tpl-editor .tpl-handle {
+    position: absolute;
+    width: 14px; height: 14px;
+    background: #4a90e2;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    z-index: 100;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+  }
+  .tpl-editor .tpl-handle.nw { top: -7px; left: -7px; cursor: nwse-resize; }
+  .tpl-editor .tpl-handle.ne { top: -7px; right: -7px; cursor: nesw-resize; }
+  .tpl-editor .tpl-handle.sw { bottom: -7px; left: -7px; cursor: nesw-resize; }
+  .tpl-editor .tpl-handle.se { bottom: -7px; right: -7px; cursor: nwse-resize; }
+
+  /* Double-click creator input (index.html port) */
+  .creator {
+    position: absolute; width: 0; height: 0; z-index: 60;
+  }
+  .creator input.text {
+    position: absolute; transform: translate(-50%, -50%);
+    font-family: 'Bangers', cursive;
+    font-size: 22px; letter-spacing: 1.3px; text-transform: uppercase;
+    text-align: center; color: #000;
+    background: rgba(255,255,255,0.94);
+    border: 2px dashed rgba(0,0,0,0.4);
+    border-radius: 6px;
+    padding: 8px 16px;
+    outline: none; min-width: 180px;
+  }
+  .creator input.text::placeholder { color: rgba(0,0,0,0.28); }
+  /* ---------------- Center stage (leaves room for both right sidebars) ---------------- */
+  #center {
+    position: absolute;
+    top: 0; left: 0; bottom: 0; right: 400px;
+    background: #14120f;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+
+  /* ---------------- Style palette sidebar (right, sits left of font sidebar) ---------------- */
+  #style-sidebar {
+    position: fixed;
+    top: 0; right: 200px; bottom: 0;
+    width: 200px;
+    background: #1a1815;
+    border-left: 1px solid #302b26;
+    padding: 14px 10px 20px;
+    overflow-y: auto;
+    z-index: 100;
+    box-shadow: -2px 0 10px rgba(0,0,0,0.35);
+    box-sizing: border-box;
+    font-family: system-ui;
+  }
+  #style-sidebar .ss-title {
+    font-size: 11px;
+    letter-spacing: 1.4px;
+    color: #78706a;
+    text-transform: uppercase;
+    padding: 0 4px 4px;
+  }
+  #style-sidebar .ss-hint {
+    font-size: 10px;
+    color: #52493f;
+    padding: 0 4px 10px;
+    line-height: 1.35;
+    border-bottom: 1px solid #2a2620;
+    margin-bottom: 10px;
+  }
+  #style-chips {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .style-chip {
+    background: #23201c;
+    border: 1px solid #302b26;
+    border-radius: 5px;
+    padding: 4px;
+    cursor: pointer;
+    transition: background 0.1s, border-color 0.1s, transform 0.08s;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .style-chip:hover {
+    background: #2f2a24;
+    border-color: #fdf23f;
+    transform: translateY(-1px);
+  }
+  .style-chip:active { transform: translateY(0); }
+  .style-chip canvas {
+    display: block;
+    width: 100%;
+    height: 52px;
+    border-radius: 3px;
+    background: #14120f;
+  }
+  .style-chip .sc-name {
+    font-size: 9px;
+    color: #cec5b8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 3px;
+    text-align: center;
+    font-weight: 600;
+    line-height: 1.1;
+  }
+
+  /* ---------------- Font sidebar (right, always visible) ---------------- */
+  #font-sidebar {
+    position: fixed;
+    top: 0; right: 0; bottom: 0;
+    width: 200px;
+    background: #1a1815;
+    border-left: 1px solid #302b26;
+    padding: 18px 0 20px;
+    overflow-y: auto;
+    z-index: 100;
+    box-shadow: -2px 0 10px rgba(0,0,0,0.35);
+  }
+  #font-sidebar .fs-title {
+    padding: 0 16px 12px;
+    font-family: system-ui;
+    font-size: 11px;
+    letter-spacing: 1.4px;
+    color: #78706a;
+    text-transform: uppercase;
+    border-bottom: 1px solid #2a2620;
+    margin-bottom: 4px;
+  }
+  #font-sidebar .fs-item {
+    padding: 14px 18px;
+    cursor: pointer;
+    font-size: 22px;
+    color: #cec5b8;
+    border-bottom: 1px solid #23201c;
+    line-height: 1;
+    transition: background 0.1s, color 0.1s;
+  }
+  #font-sidebar .fs-item:hover { background: #2a2620; color: #fff; }
+  #font-sidebar .fs-item.active {
+    background: #2f2a24;
+    color: #fdf23f;
+    border-left: 3px solid #fdf23f;
+    padding-left: 15px;
+  }
+  #font-sidebar .fs-btn {
+    display: block;
+    width: calc(100% - 24px);
+    margin: 4px 12px;
+    padding: 10px 12px;
+    background: #2a2620;
+    color: #fdf23f;
+    border: 1px solid #4a4238;
+    border-radius: 4px;
+    cursor: pointer;
+    text-align: center;
+    font-size: 11px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    font-weight: 600;
+    font-family: system-ui;
+  }
+  #font-sidebar .fs-btn:hover { background: #fdf23f; color: #201d1a; border-color: #fdf23f; }
+  #font-sidebar .fs-btn.danger { color: #ff6b57; border-color: #4a3630; }
+  #font-sidebar .fs-btn.danger:hover { background: #ff6b57; color: #fff; border-color: #ff6b57; }
+  #font-sidebar .fs-status {
+    font-family: system-ui;
+    font-size: 10px;
+    color: #78706a;
+    text-align: center;
+    padding: 4px 12px 8px;
+  }
+  #stage-wrap {
+    position: relative;
+    width: 800px; height: 626px;
+    transform-origin: center center;
+  }
+  #stage {
+    position: absolute; inset: 0;
+    background: transparent;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  #svg-layer {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    display: block;
+  }
+  #handle-layer, #bubble-layer {
+    position: absolute; inset: 0;
+    pointer-events: none;
+  }
+  #bubble-layer > * { pointer-events: auto; }
+
+  /* Invisible vertex drag handles — always live, X-axis only.
+     Wide-and-short hit area so the whole vertical divider line is grabbable. */
+  .vhandle {
+    position: absolute;
+    width: 22px; height: 40px;
+    transform: translate(-50%, -50%);
+    cursor: ew-resize;
+    z-index: 10;
+    pointer-events: auto;
+    background: transparent;
+  }
+  /* Tiny hint bump on hover (subtle, only when mouse is on the handle) */
+  .vhandle::after {
+    content: '';
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: 6px; height: 6px; border-radius: 50%;
+    background: rgba(74,144,226,0.7);
+    opacity: 0;
+    transition: opacity 0.15s;
+    pointer-events: none;
+  }
+  .vhandle:hover::after { opacity: 1; }
+  .vhandle.dragging::after { opacity: 1; background: #ff3b30; width: 8px; height: 8px; }
+
+  /* Panel selection highlight (SVG stroke handled separately) */
+
+  /* Placed bubble */
+  .bubble {
+    position: absolute;
+    cursor: move;
+    box-sizing: border-box;
+  }
+  .bubble canvas {
+    display: block;
+    pointer-events: none;
+    width: 100%; height: 100%;
+  }
+  .bubble img {
+    display: block;
+    pointer-events: none;
+    width: 100%; height: 100%;
+    -webkit-user-drag: none;
+    object-fit: contain;
+  }
+  .bubble .btext {
+    position: absolute;
+    background: transparent;
+    border: none;
+    outline: none;
+    text-align: center;
+    resize: none;
+    overflow: hidden;
+    /* Tiny horizontal breathing room so glyphs never kiss the textbox edge. */
+    padding: 0 3px;
+    box-sizing: border-box;
+    line-height: 1.08;
+    color: #000;
+    font-weight: bold;
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+  .bubble .btext::placeholder { color: rgba(0,0,0,0.12); font-weight: normal; }
+  .bubble:not(.selected) .btext::placeholder { color: transparent; }
+  .bubble.selected .bhandle { display: block; }
+  .bhandle {
+    position: absolute; width: 10px; height: 10px;
+    background: #4a90e2; border: 2px solid #fff; border-radius: 50%;
+    z-index: 30; display: none;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  }
+  .bhandle.nw { top: -7px; left: -7px; cursor: nwse-resize; }
+  .bhandle.ne { top: -7px; right: -7px; cursor: nesw-resize; }
+  .bhandle.sw { bottom: -7px; left: -7px; cursor: nesw-resize; }
+  .bhandle.se { bottom: -7px; right: -7px; cursor: nwse-resize; }
+  .bhandle.n  { top: -7px; left: 50%; transform: translateX(-50%); cursor: ns-resize; }
+  .bhandle.s  { bottom: -7px; left: 50%; transform: translateX(-50%); cursor: ns-resize; }
+  .bhandle.w  { top: 50%; left: -7px; transform: translateY(-50%); cursor: ew-resize; }
+  .bhandle.e  { top: 50%; right: -7px; transform: translateY(-50%); cursor: ew-resize; }
+  .bubble.selected { outline: 2px dashed #4a90e2; outline-offset: 4px; border-radius: 4px; }
+
+  /* ---------------- Toast ---------------- */
+  #toast {
+    position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%);
+    background: #111; color: #fff;
+    padding: 10px 20px; border-radius: 20px;
+    font-size: 13px; letter-spacing: 0.5px;
+    opacity: 0; transition: opacity 0.2s;
+    pointer-events: none; z-index: 200;
+  }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="center">
+    <div id="stage-wrap">
+      <div id="stage">
+        <svg id="svg-layer" viewBox="0 0 800 626" preserveAspectRatio="none"></svg>
+        <div id="handle-layer"></div>
+        <div id="bubble-layer"></div>
+      </div>
+    </div>
+  </div>
+  <div id="style-sidebar">
+    <div class="ss-title">Styles</div>
+    <div class="ss-hint">Click to add · Paste (⌘V) any image · ⌘+/− resize text</div>
+    <div id="style-chips"></div>
+  </div>
+  <div id="font-sidebar">
+    <div class="fs-title">Save</div>
+    <button class="fs-btn" id="save-project">↓ Save project.json</button>
+    <button class="fs-btn" id="load-project">↑ Load project.json</button>
+    <input type="file" id="load-file" accept=".json" style="display:none">
+    <div class="fs-title" style="margin-top:6px">Export</div>
+    <button class="fs-btn" id="export-a4">↓ Export A4 PDF</button>
+    <button class="fs-btn" id="export-a3">↓ Export A3 PDF</button>
+    <div class="fs-title" style="margin-top:6px">Reset</div>
+    <button class="fs-btn danger" id="reset-text">Wipe text · keep images</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+
+// =====================================================================
+//  CONFIG  (duplicated from index.html — kept identical so both pages
+//  render bubbles the same way)
+// =====================================================================
+
+const DPR = window.devicePixelRatio || 1;
+
+const COLORS = [
+  '#fdf23f', '#ffffff', '#ff3b30', '#4a90e2', '#37c26a',
+  '#ff8fb8', '#ff8c1a', '#a259ff', '#000000', '#d9c9a3'
+];
+
+const FONTS = [
+  'system-ui', 'Bangers', 'Bungee', 'Permanent Marker', 'Luckiest Guy',
+  'Titan One', 'Sigmar', 'Creepster', 'Rock Salt', 'Modak', 'Comic Neue'
+];
+
+const STYLES = {
+  caption:     { fill: '#fdf23f', font: 'Bangers',    size: { w: 300, h: 110 }, upper: true  },
+  narrator:    { fill: '#f9f4e6', font: 'Comic Neue', size: { w: 300, h: 130 }, upper: true  },
+  silver:      { fill: '#fed835', font: 'Comic Neue', size: { w: 340, h: 130 }, upper: true  },
+  display:     { fill: '#fdf23f', font: 'Bungee',     size: { w: 340, h: 140 }, upper: true, italic: true },
+  double:      { fill: '#fdf6e3', font: 'Comic Neue', size: { w: 300, h: 140 }, upper: true  },
+  dialog:      { fill: '#ffffff', font: 'Comic Neue', size: { w: 280, h: 140 }, upper: false },
+  speech:      { fill: '#ffffff', font: 'Bangers',    size: { w: 340, h: 170 }, upper: true  },
+  thought:     { fill: '#ffffff', font: 'Comic Neue', size: { w: 320, h: 190 }, upper: false },
+  silvercloud: { fill: '#ffffff', font: 'Comic Neue', size: { w: 340, h: 240 }, upper: true },
+  // Rounded speech bubble sitting on a radial halftone-dot backdrop
+  // (matches text_styles/screenshot.png).
+  halftonebubble: { fill: '#ffffff', font: 'Comic Neue', size: { w: 360, h: 240 }, upper: true },
+  // ── From newscreenshot.png (comic lettering-guide reference) ──
+  // comicspeech: chunky rounded rectangle with thick black outline + side tail,
+  //              like the "WIELD THE CROSSBAR I…" bubble
+  // orangebox:   filled orange rectangular caption ("#1 SIGN OF AN AMATEUR…")
+  comicspeech: { fill: '#ffffff', font: 'Comic Neue', size: { w: 340, h: 180 }, upper: true  },
+  orangebox:   { fill: '#ff8c1a', font: 'Comic Neue', size: { w: 240, h: 130 }, upper: true  },
+  burst:       { fill: '#ff3b30', font: 'Bungee',     size: { w: 240, h: 240 }, upper: true  },
+  pop:         { fill: '#4a90e2', font: 'Bungee',     size: { w: 360, h: 260 }, upper: true  },
+  soundfx:     { fill: '#ffcc00', font: 'Bungee',     size: { w: 320, h: 160 }, upper: true  },
+  halftone:    { fill: '#ffcc00', font: 'Bungee',     size: { w: 320, h: 160 }, upper: true  },
+  chromatic:   { fill: '#ffffff', font: 'Bungee',     size: { w: 340, h: 160 }, upper: true  },
+  glitch:      { fill: '#ffffff', font: 'Bungee',     size: { w: 340, h: 160 }, upper: true  },
+  neon:        { fill: '#ff2d95', font: 'Bungee',     size: { w: 340, h: 180 }, upper: true  },
+  kirby:       { fill: '#ffcc00', font: 'Bungee',     size: { w: 260, h: 260 }, upper: true  },
+  sticker:     { fill: '#ff8fb8', font: 'Bangers',    size: { w: 260, h: 150 }, upper: true  },
+};
+
+// Interior text-area margins per style (px)
+const TEXT_MARGIN = {
+  caption:     { mx: 34,  my: 30  },
+  narrator:    { mx: 40,  my: 40  },
+  silver:      { mx: 30,  my: 30  },
+  display:     { mx: 40,  my: 40  },
+  dialog:      { mx: 60,  my: 44  },
+  double:      { mx: 46,  my: 44  },
+  speech:      { mx: 70,  my: 70  },
+  thought:     { mx: 72,  my: 92  },
+  silvercloud: { mx: 62,  my: 90  },
+  halftonebubble: { mx: 70,  my: 100 },
+  comicspeech: { mx: 32,  my: 32  },
+  orangebox:   { mx: 22,  my: 22  },
+  burst:       { mx: 110, my: 110 },
+  sticker:     { mx: 54,  my: 46  },
+  soundfx:     { mx: 24,  my: 24  },
+  pop:         { mx: 150, my: 130 },
+  halftone:    { mx: 30,  my: 30  },
+  chromatic:   { mx: 30,  my: 30  },
+  glitch:      { mx: 30,  my: 30  },
+  neon:        { mx: 40,  my: 40  },
+  kirby:       { mx: 100, my: 100 },
+};
+
+// (Palette removed — bubbles are added via double-click creator now.)
+
+// =====================================================================
+//  DRAWING LIBRARY (duplicated from index.html)
+//  Bubbles here always draw with EMPTY text — the visible text lives in
+//  a real <textarea> overlaid on the canvas.
+// =====================================================================
+
+function drawStyle(ctx, styleKey, W, H, text, fill, font) {
+  ctx.clearRect(0, 0, W, H);
+  DRAWERS[styleKey](ctx, W, H, text, fill, font, STYLES[styleKey]);
+}
+
+const DRAWERS = {
+  caption:     drawCaption,
+  narrator:    drawNarrator,
+  silver:      drawSilver,
+  silvercloud: drawSilverCloud,
+  display:     drawDisplay,
+  dialog:      drawDialog,
+  double:      drawDouble,
+  speech:      drawSpeech,
+  thought:     drawThought,
+  halftonebubble: drawHalftoneBubble,
+  comicspeech: drawComicSpeech,
+  orangebox:   drawOrangeBox,
+  burst:       drawBurst,
+  sticker:     drawSticker,
+  soundfx:     drawSoundFX,
+  pop:         drawPop,
+  halftone:    drawHalftone,
+  chromatic:   drawChromatic,
+  glitch:      drawGlitch,
+  neon:        drawNeon,
+  kirby:       drawKirby,
+};
+
+// Rounded-rect speech bubble sitting on top of a radial halftone-dot
+// backdrop with a downward-right tail. Matches text_styles/screenshot.png.
+function drawHalftoneBubble(ctx, W, H, text, fill, font, style) {
+  const s = Math.min(W, H) / 200;
+  const cx = W/2, cy = H/2;
+  const bw2 = Math.max(1.6, 2.6 * s);
+  const tailZone = 44 * s;
+  const bx = 22 * s;
+  const bwidth = W - bx*2;
+  const bTop = 14 * s;
+  const bHeight = H - bTop - tailZone - 8 * s;
+  const r = 26 * s;
+
+  // Radial halftone backdrop, densest in a mid-radius ring.
+  ctx.fillStyle = 'rgba(20,20,20,0.72)';
+  const spacing = Math.max(6, 8 * s);
+  const maxDotR = Math.min(3.2, 3.2 * s);
+  for (let y = spacing/2; y < H; y += spacing) {
+    for (let x = spacing/2; x < W; x += spacing) {
+      const dx = (x - cx) / (W/2);
+      const dy = (y - cy) / (H/2);
+      const d = Math.sqrt(dx*dx + dy*dy);
+      const density = Math.max(0, 1.4 - Math.abs(d - 0.55) * 3.4);
+      if (density < 0.15) continue;
+      ctx.beginPath();
+      ctx.arc(x, y, maxDotR * density, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  const tailBaseX1 = cx + 8 * s;
+  const tailBaseX2 = cx + 46 * s;
+  const tailBaseY  = bTop + bHeight - bw2;
+  const tailTipX   = cx + 60 * s;
+  const tailTipY   = bTop + bHeight + tailZone;
+
+  // Outline
+  ctx.fillStyle = '#000';
+  roundedRectPath(ctx, bx - bw2, bTop - bw2, bwidth + bw2*2, bHeight + bw2*2, r + bw2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(tailBaseX1 - bw2, tailBaseY);
+  ctx.lineTo(tailTipX + bw2,   tailTipY + bw2);
+  ctx.lineTo(tailBaseX2 + bw2, tailBaseY);
+  ctx.closePath();
+  ctx.fill();
+
+  // Fill
+  ctx.fillStyle = fill;
+  roundedRectPath(ctx, bx, bTop, bwidth, bHeight, r);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(tailBaseX1 + 2 * s, tailBaseY - 2 * s);
+  ctx.lineTo(tailTipX,           tailTipY - 4 * s);
+  ctx.lineTo(tailBaseX2 - 2 * s, tailBaseY - 2 * s);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillRect(tailBaseX1, tailBaseY - bw2, tailBaseX2 - tailBaseX1, bw2 * 2);
+
+  const ink = isDark(fill) ? '#fff' : '#000';
+  drawFittedText(ctx, text, cx, bTop + bHeight/2, bwidth - 50 * s, bHeight - 40 * s, style, font, ink);
+}
+
+// ── newscreenshot.png styles ────────────────────────────────────────────
+// Chunky rounded rect with THICK black outline + short pointed tail off
+// the lower-right — matches the "WIELD THE CROSSBAR I…" bubble.
+function drawComicSpeech(ctx, W, H, text, fill, font, style) {
+  const s = Math.min(W, H) / 150;
+  const pad = 6 * s;
+  const border = Math.max(3, 4.5 * s);
+  const r = 22 * s;
+  const tailW = 18 * s, tailH = 22 * s;
+  const bodyH = H - tailH - pad;
+  const x = pad, y = pad;
+  const w = W - pad*2, h = bodyH - pad;
+  // Tail sits off the bottom-right of the bubble body.
+  const tailBaseX = x + w * 0.72;
+  const tailBaseY = y + h;
+  const tailTipX  = tailBaseX + tailW * 1.4;
+  const tailTipY  = tailBaseY + tailH;
+  // Black outline (rect + tail path)
+  ctx.fillStyle = '#000';
+  roundedRectPath(ctx, x - border/2, y - border/2, w + border, h + border, r + border/2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(tailBaseX - border,           tailBaseY - border/2);
+  ctx.lineTo(tailBaseX + tailW + border,   tailBaseY - border/2);
+  ctx.lineTo(tailTipX,                     tailTipY + border);
+  ctx.closePath();
+  ctx.fill();
+  // Fill
+  ctx.fillStyle = fill;
+  roundedRectPath(ctx, x, y, w, h, r);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(tailBaseX,          tailBaseY);
+  ctx.lineTo(tailBaseX + tailW,  tailBaseY);
+  ctx.lineTo(tailTipX - border * 0.6, tailTipY - border);
+  ctx.closePath();
+  ctx.fill();
+  const ink = isDark(fill) ? '#fff' : '#000';
+  drawFittedText(ctx, text, x + w/2, y + h/2, w - 30 * s, h - 30 * s, style, font, ink);
+}
+
+// Solid rectangular colour callout with black border — matches the small
+// orange "#1 SIGN OF AN AMATEUR LETTERING JOB" tag in newscreenshot.png.
+function drawOrangeBox(ctx, W, H, text, fill, font, style) {
+  const s = Math.min(W, H) / 110;
+  const pad = 5 * s;
+  const border = Math.max(3, 3.5 * s);
+  const x = pad, y = pad;
+  const w = W - pad*2, h = H - pad*2;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(x - border/2, y - border/2, w + border, h + border);
+  ctx.fillStyle = fill;
+  ctx.fillRect(x, y, w, h);
+  const ink = isDark(fill) ? '#fff' : '#000';
+  drawFittedText(ctx, text, x + w/2, y + h/2, w - 20 * s, h - 18 * s, style, font, ink);
+}
+
+function drawCaption(ctx, W, H, text, fill, font, style) {
+  const s = Math.min(W, H) / 110;
+  const pad = 8 * s, shadow = 6 * s, border = 4 * s;
+  const x = pad, y = pad;
+  const w = W - pad*2 - shadow, h = H - pad*2 - shadow;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(x + shadow, y + shadow, w, h);
+  ctx.fillStyle = fill;
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = border;
+  ctx.strokeRect(x + border/2, y + border/2, w - border, h - border);
+  const ink = isDark(fill) ? '#fff' : '#000';
+  drawFittedText(ctx, text, x + w/2, y + h/2, w - 30 * s, h - 26 * s, style, font, ink);
+}
+
+function drawSpeech(ctx, W, H, text, fill, font, style) {
+  const s = Math.min(W, H) / 150;
+  const bw = 2 * s;
+  const tailH = 26 * s;
+  const cx = W/2, cy = H/2 - 10 * s;
+  const rx = W/2 - 14 * s, ry = H/2 - (16 + tailH * 0.45) * s;
+  const tailBaseX1 = cx - 20 * s, tailBaseX2 = cx + 4 * s;
+  const tailBaseY  = cy + ry - 6 * s;
+  const tailTipX   = cx - 12 * s, tailTipY = cy + ry + tailH;
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx + bw, ry + bw, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(tailBaseX1 - bw, tailBaseY);
+  ctx.lineTo(tailTipX - bw,  tailTipY + bw);
+  ctx.lineTo(tailBaseX2 + bw, tailBaseY);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = fill;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx - bw, ry - bw, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(tailBaseX1 + 4 * s, tailBaseY - 5 * s);
+  ctx.lineTo(tailTipX,           tailTipY - 5 * s);
+  ctx.lineTo(tailBaseX2 - 4 * s, tailBaseY - 5 * s);
+  ctx.closePath();
+  ctx.fill();
+  const ink = isDark(fill) ? '#fff' : '#000';
+  drawFittedText(ctx, text, cx, cy, rx * 1.55, ry * 1.4, style, font, ink);
+}
+
+function drawThought(ctx, W, H, text, fill, font, style) {
+  const s = Math.min(W, H) / 180;
+  const bw = 2 * s;
+  const tailZone = 46 * s;
+  const cx = W/2;
+  const bodyTop = 10 * s;
+  const bodyBottom = H - tailZone;
+  const cy = (bodyTop + bodyBottom) / 2;
+  const rx = W/2 - 22 * s;
+  const ry = (bodyBottom - bodyTop) / 2;
+  const puffs = 10;
+  const puffR = Math.min(rx, ry) * 0.32;
+  const tailX = cx - rx * 0.42;
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx + bw, ry + bw, 0, 0, Math.PI * 2);
+  ctx.fill();
+  for (let i = 0; i < puffs; i++) {
+    const a = (i / puffs) * Math.PI * 2 - Math.PI/2;
+    const px = cx + Math.cos(a) * rx;
+    const py = cy + Math.sin(a) * ry;
+    ctx.beginPath();
+    ctx.arc(px, py, puffR + bw, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.beginPath(); ctx.arc(tailX,           cy + ry + 14 * s, 13 * s, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(tailX - 20 * s,  cy + ry + 32 * s, 8 * s,  0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(tailX - 34 * s,  cy + ry + 44 * s, 4 * s,  0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = fill;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx - bw, ry - bw, 0, 0, Math.PI * 2);
+  ctx.fill();
+  for (let i = 0; i < puffs; i++) {
+    const a = (i / puffs) * Math.PI * 2 - Math.PI/2;
+    const px = cx + Math.cos(a) * rx;
+    const py = cy + Math.sin(a) * ry;
+    ctx.beginPath();
+    ctx.arc(px, py, puffR - bw, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx * 0.94, ry * 0.94, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath(); ctx.arc(tailX,          cy + ry + 14 * s, 9 * s, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(tailX - 20 * s, cy + ry + 32 * s, 4 * s, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(tailX - 34 * s, cy + ry + 44 * s, 1.5 * s, 0, Math.PI*2); ctx.fill();
+  const ink = isDark(fill) ? '#fff' : '#000';
+  drawFittedText(ctx, text, cx, cy, rx * 1.55, ry * 1.55, style, font, ink);
+}
+
+function drawBurst(ctx, W, H, text, fill, font, style) {
+  const s = Math.min(W, H) / 150;
+  const cx = W/2, cy = H/2;
+  const outerR = Math.min(W, H)/2 - 6 * s;
+  const innerR = outerR * 0.76;
+  const spikes = 14;
+  const bw = 3 * s;
+  ctx.fillStyle = '#000';
+  starPath(ctx, cx, cy, spikes, outerR + bw, innerR + bw);
+  ctx.fill();
+  ctx.fillStyle = fill;
+  starPath(ctx, cx, cy, spikes, outerR, innerR);
+  ctx.fill();
+  drawFittedText(ctx, text, cx, cy, innerR * 1.35, innerR * 1.35, style, font, '#fff', '#000');
+}
+
+function drawSticker(ctx, W, H, text, fill, font, style) {
+  const s = Math.min(W, H) / 150;
+  const pad = 12 * s, r = 22 * s;
+  const shadowOff = 6 * s, shadowDown = 8 * s;
+  const band = 5 * s, inner = 6 * s;
+  const x = pad, y = pad;
+  const w = W - pad*2, h = H - pad*2;
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  roundedRectPath(ctx, x + shadowOff, y + shadowDown, w, h, r);
+  ctx.fill();
+  ctx.fillStyle = '#000';
+  roundedRectPath(ctx, x, y, w, h, r);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  roundedRectPath(ctx, x + band, y + band, w - band*2, h - band*2, r - band + 1);
+  ctx.fill();
+  ctx.fillStyle = fill;
+  roundedRectPath(ctx, x + band + inner, y + band + inner, w - (band + inner)*2, h - (band + inner)*2, r - band - inner + 2);
+  ctx.fill();
+  const ink = isDark(fill) ? '#fff' : '#000';
+  drawFittedText(ctx, text, x + w/2, y + h/2, w - 46 * s, h - 40 * s, style, font, ink);
+}
+
+function drawSoundFX(ctx, W, H, text, fill, font, style) {
+  const cx = W/2, cy = H/2;
+  const displayText = style.upper ? text.toUpperCase() : text;
+  if (!displayText.trim()) return;
+  const maxW = W - 24;
+  const maxH = H - 30;
+  const fit = fitText(ctx, displayText, maxW, maxH, font);
+  ctx.font = `bold ${fit.size}px "${font}", cursive`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.miterLimit = 2;
+  const lineH = fit.size * 1.05;
+  const startY = cy - (fit.lines.length - 1) * lineH / 2;
+  const strokeW = Math.max(4, fit.size * 0.15);
+  const depth = Math.max(4, Math.round(fit.size * 0.16));
+  const extrude = shade(fill, -0.45);
+  fit.lines.forEach((line, i) => {
+    const y = startY + i * lineH;
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.fillText(line, cx + depth + 6, y + depth + 6);
+    ctx.fillStyle = extrude;
+    for (let k = depth; k >= 1; k--) ctx.fillText(line, cx + k, y + k);
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = strokeW * 0.75;
+    ctx.strokeText(line, cx + depth, y + depth);
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = strokeW;
+    ctx.strokeText(line, cx, y);
+    ctx.fillStyle = fill;
+    ctx.fillText(line, cx, y);
+  });
+}
+
+function drawPop(ctx, W, H, text, fill, font, style) {
+  const cx = W/2, cy = H/2;
+  const displayText = text.toUpperCase();
+  const br = 14;
+  ctx.fillStyle = '#000';
+  roundedRectPath(ctx, 0, 0, W, H, br);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  roundedRectPath(ctx, 5, 5, W - 10, H - 10, br - 3);
+  ctx.fill();
+  ctx.save();
+  roundedRectPath(ctx, 5, 5, W - 10, H - 10, br - 3);
+  ctx.clip();
+  drawHalftoneBG(ctx, W, H);
+  const spikeOuter = Math.max(W, H) * 0.7;
+  drawSpeedSpikes(ctx, cx, cy, spikeOuter, 14, spikeOuter * 0.42, 5);
+  const outerR = Math.min(W, H) * 0.44;
+  const innerR = outerR * 0.74;
+  ctx.fillStyle = '#000';
+  starPath(ctx, cx, cy, 12, outerR + 3, innerR + 3);
+  ctx.fill();
+  ctx.fillStyle = fill;
+  starPath(ctx, cx, cy, 12, outerR, innerR);
+  ctx.fill();
+  if (displayText.trim()) {
+    const dotScale = Math.max(1, Math.min(W, H) / 220);
+    const pattern = makePolkaPattern(ctx, '#fff33f', '#d19400', 3 * dotScale, 14 * dotScale);
+    const fit = fitText(ctx, displayText, innerR * 1.55, innerR * 0.95, font);
+    ctx.font = `bold ${fit.size}px "${font}", cursive`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.miterLimit = 2;
+    const lineH = fit.size * 1.05;
+    const startY = cy - (fit.lines.length - 1) * lineH / 2;
+    const strokeW = Math.max(4, fit.size * 0.13);
+    const extrudeDepth = Math.max(3, Math.round(fit.size * 0.14));
+    fit.lines.forEach((line, i) => {
+      const y = startY + i * lineH;
+      ctx.fillStyle = 'rgba(0,0,0,0.22)';
+      ctx.fillText(line, cx + extrudeDepth * 2, y + extrudeDepth * 2);
+      ctx.fillStyle = '#ff6a00';
+      for (let k = extrudeDepth; k >= 1; k--) ctx.fillText(line, cx + k, y + k);
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = strokeW;
+      ctx.strokeText(line, cx + extrudeDepth, y + extrudeDepth);
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = strokeW;
+      ctx.strokeText(line, cx, y);
+      ctx.fillStyle = pattern;
+      ctx.fillText(line, cx, y);
+    });
+  }
+  ctx.restore();
+}
+
+function drawHalftone(ctx, W, H, text, fill, font, style) {
+  const cx = W/2, cy = H/2;
+  const displayText = style.upper ? text.toUpperCase() : text;
+  if (!displayText.trim()) return;
+  const maxW = W - 24, maxH = H - 24;
+  const fit = fitText(ctx, displayText, maxW, maxH, font);
+  ctx.font = `bold ${fit.size}px "${font}", cursive`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.miterLimit = 2;
+  const lineH = fit.size * 1.05;
+  const startY = cy - (fit.lines.length - 1) * lineH / 2;
+  const strokeW = Math.max(4, fit.size * 0.13);
+  const offset = Math.max(4, Math.round(fit.size * 0.14));
+  const dotColor = isDark(fill) ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.65)';
+  const dotScale = Math.max(1, fit.size / 70);
+  const pattern = makePolkaPattern(ctx, fill, dotColor, 2.5 * dotScale, 11 * dotScale);
+  fit.lines.forEach((line, i) => {
+    const y = startY + i * lineH;
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = strokeW;
+    ctx.strokeText(line, cx + offset, y + offset);
+    ctx.fillStyle = '#000';
+    ctx.fillText(line, cx + offset, y + offset);
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = strokeW;
+    ctx.strokeText(line, cx, y);
+    ctx.fillStyle = pattern;
+    ctx.fillText(line, cx, y);
+  });
+}
+
+function drawNarrator(ctx, W, H, text, fill, font, style) {
+  const s = Math.min(W, H) / 120;
+  const shadow = 5 * s, pad = 6 * s, border = 3 * s;
+  const x = pad, y = pad;
+  const w = W - pad*2 - shadow, h = H - pad*2 - shadow;
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.fillRect(x + shadow, y + shadow, w, h);
+  ctx.fillStyle = fill;
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = border;
+  ctx.strokeRect(x + border/2, y + border/2, w - border, h - border);
+  const ink = isDark(fill) ? '#fff' : '#111';
+  drawFittedText(ctx, text, x + w/2, y + h/2, w - 28*s, h - 28*s, style, font, ink);
+}
+
+function drawSilver(ctx, W, H, text, fill, font, style) {
+  const s = Math.min(W, H) / 120;
+  const pad = 3 * s;
+  const border = Math.max(1.8, 2.4 * s);
+  const x = pad, y = pad;
+  const w = W - pad*2, h = H - pad*2;
+  ctx.fillStyle = fill;
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = border;
+  ctx.strokeRect(x + border/2, y + border/2, w - border, h - border);
+  const ink = isDark(fill) ? '#fff' : '#000';
+  drawFittedText(ctx, text, x + w/2, y + h/2, w - 22*s, h - 20*s, style, font, ink);
+}
+
+function drawSilverCloud(ctx, W, H, text, fill, font, style) {
+  const s = Math.min(W, H) / 180;
+  const bw = Math.max(1.6, 2 * s);
+  const tailZone = 46 * s;
+  const cx = W/2;
+  const bodyTop = 10 * s;
+  const bodyBottom = H - tailZone;
+  const cy = (bodyTop + bodyBottom) / 2;
+  const rx = W/2 - 16 * s;
+  const ry = (bodyBottom - bodyTop) / 2;
+  const perim = Math.PI * (3 * (rx + ry) - Math.sqrt((3*rx + ry) * (rx + 3*ry)));
+  const scallR = Math.min(rx, ry) * 0.13;
+  const scallops = Math.max(14, Math.round(perim / (scallR * 2.6)));
+  const tailX = cx - rx * 0.42;
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx + bw, ry + bw, 0, 0, Math.PI * 2);
+  ctx.fill();
+  for (let i = 0; i < scallops; i++) {
+    const a = (i / scallops) * Math.PI * 2 - Math.PI/2;
+    const px = cx + Math.cos(a) * rx;
+    const py = cy + Math.sin(a) * ry;
+    ctx.beginPath();
+    ctx.arc(px, py, scallR + bw, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.beginPath(); ctx.arc(tailX,           cy + ry + 14 * s, 12 * s,  0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(tailX - 18 * s,  cy + ry + 30 * s, 7 * s,   0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(tailX - 30 * s,  cy + ry + 42 * s, 3.5 * s, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = fill;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx - bw, ry - bw, 0, 0, Math.PI * 2);
+  ctx.fill();
+  for (let i = 0; i < scallops; i++) {
+    const a = (i / scallops) * Math.PI * 2 - Math.PI/2;
+    const px = cx + Math.cos(a) * rx;
+    const py = cy + Math.sin(a) * ry;
+    ctx.beginPath();
+    ctx.arc(px, py, scallR - bw, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx * 0.96, ry * 0.96, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath(); ctx.arc(tailX,          cy + ry + 14 * s, 8 * s,   0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(tailX - 18 * s, cy + ry + 30 * s, 4 * s,   0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(tailX - 30 * s, cy + ry + 42 * s, 1.2 * s, 0, Math.PI*2); ctx.fill();
+  const ink = isDark(fill) ? '#fff' : '#000';
+  drawFittedText(ctx, text, cx, cy, rx * 1.5, ry * 1.55, style, font, ink);
+}
+
+function drawDisplay(ctx, W, H, text, fill, font, style) {
+  const s = Math.min(W, H) / 120;
+  const cx = W/2, cy = H/2;
+  const displayText = style.upper ? text.toUpperCase() : text;
+  if (!displayText.trim()) return;
+  const italic = 'italic ';
+  const fit = fitText(ctx, displayText, W - 24 * s, H - 30 * s, font, italic);
+  ctx.font = `${italic}bold ${fit.size}px "${font}", cursive`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.miterLimit = 2;
+  const lineH = fit.size * 1.05;
+  const startY = cy - (fit.lines.length - 1) * lineH / 2;
+  const strokeW = Math.max(4, fit.size * 0.14);
+  const shadow = Math.max(4, fit.size * 0.10);
+  fit.lines.forEach((line, i) => {
+    const y = startY + i * lineH;
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = strokeW;
+    ctx.strokeText(line, cx + shadow, y + shadow);
+    ctx.fillStyle = '#000';
+    ctx.fillText(line, cx + shadow, y + shadow);
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = strokeW;
+    ctx.strokeText(line, cx, y);
+    ctx.fillStyle = fill;
+    ctx.fillText(line, cx, y);
+  });
+}
+
+function drawDialog(ctx, W, H, text, fill, font, style) {
+  const s = Math.min(W, H) / 120;
+  const shadow = 5 * s, pad = 6 * s, border = 3 * s;
+  const x = pad, y = pad;
+  const w = W - pad*2 - shadow, h = H - pad*2 - shadow;
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.fillRect(x + shadow, y + shadow, w, h);
+  ctx.fillStyle = fill;
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = border;
+  ctx.strokeRect(x + border/2, y + border/2, w - border, h - border);
+  const quoted = text.trim() ? '“' + text + '”' : '';
+  const ink = isDark(fill) ? '#fff' : '#111';
+  drawFittedText(ctx, quoted, x + w/2, y + h/2, w - 34*s, h - 28*s, style, font, ink);
+}
+
+function drawDouble(ctx, W, H, text, fill, font, style) {
+  const s = Math.min(W, H) / 120;
+  const pad = 6 * s, border = 3 * s, gap = 5 * s, innerBorder = 3 * s;
+  const x = pad, y = pad;
+  const w = W - pad*2, h = H - pad*2;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = fill;
+  ctx.fillRect(x + border, y + border, w - border*2, h - border*2);
+  ctx.strokeStyle = '#c8102e';
+  ctx.lineWidth = innerBorder;
+  const ix = x + border + gap, iy = y + border + gap;
+  const iw = w - border*2 - gap*2, ih = h - border*2 - gap*2;
+  ctx.strokeRect(ix + innerBorder/2, iy + innerBorder/2, iw - innerBorder, ih - innerBorder);
+  const ink = isDark(fill) ? '#fff' : '#111';
+  drawFittedText(ctx, text, x + w/2, y + h/2, iw - 20*s, ih - 20*s, style, font, ink);
+}
+
+function drawChromatic(ctx, W, H, text, fill, font, style) {
+  const s = Math.min(W, H) / 120;
+  const cx = W/2, cy = H/2;
+  const displayText = style.upper ? text.toUpperCase() : text;
+  if (!displayText.trim()) return;
+  const fit = fitText(ctx, displayText, W - 20 * s, H - 20 * s, font);
+  ctx.font = `bold ${fit.size}px "${font}", cursive`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const lineH = fit.size * 1.08;
+  const startY = cy - (fit.lines.length - 1) * lineH / 2;
+  const offset = Math.max(3, fit.size * 0.06);
+  fit.lines.forEach((line, i) => {
+    const y = startY + i * lineH;
+    ctx.fillStyle = '#00e5ff';
+    ctx.fillText(line, cx - offset, y - offset * 0.4);
+    ctx.fillStyle = '#ff0055';
+    ctx.fillText(line, cx + offset, y + offset * 0.4);
+    ctx.fillStyle = fill;
+    ctx.fillText(line, cx, y);
+  });
+}
+
+function drawGlitch(ctx, W, H, text, fill, font, style) {
+  const s = Math.min(W, H) / 120;
+  const cx = W/2, cy = H/2;
+  const displayText = style.upper ? text.toUpperCase() : text;
+  if (!displayText.trim()) return;
+  const fit = fitText(ctx, displayText, W - 20 * s, H - 20 * s, font);
+  ctx.font = `bold ${fit.size}px "${font}", cursive`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const lineH = fit.size * 1.08;
+  const startY = cy - (fit.lines.length - 1) * lineH / 2;
+  fit.lines.forEach((line, i) => {
+    const y = startY + i * lineH;
+    ctx.fillStyle = fill;
+    ctx.fillText(line, cx, y);
+    const shift = fit.size * 0.14;
+    const slices = [
+      { yOff: -0.32, h: 0.14, xShift:  shift, color: '#ff2266' },
+      { yOff:  0.04, h: 0.11, xShift: -shift, color: '#00ddff' },
+      { yOff:  0.24, h: 0.09, xShift:  shift * 0.6, color: '#ffff33' },
+    ];
+    for (const sl of slices) {
+      const bandY = y + sl.yOff * fit.size;
+      const bandH = sl.h * fit.size;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, bandY, W, bandH);
+      ctx.clip();
+      ctx.fillStyle = sl.color;
+      ctx.fillText(line, cx + sl.xShift, y);
+      ctx.restore();
+    }
+  });
+}
+
+function drawNeon(ctx, W, H, text, fill, font, style) {
+  const s = Math.min(W, H) / 120;
+  const cx = W/2, cy = H/2;
+  ctx.fillStyle = '#0a0812';
+  ctx.fillRect(0, 0, W, H);
+  const displayText = style.upper ? text.toUpperCase() : text;
+  if (!displayText.trim()) return;
+  const fit = fitText(ctx, displayText, W - 40 * s, H - 40 * s, font);
+  ctx.font = `bold ${fit.size}px "${font}", cursive`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.miterLimit = 2;
+  const lineH = fit.size * 1.08;
+  const startY = cy - (fit.lines.length - 1) * lineH / 2;
+  fit.lines.forEach((line, i) => {
+    const y = startY + i * lineH;
+    ctx.shadowColor = fill;
+    ctx.shadowBlur = 40 * s;
+    ctx.strokeStyle = fill;
+    ctx.lineWidth = 5 * s;
+    ctx.strokeText(line, cx, y);
+    ctx.strokeText(line, cx, y);
+    ctx.shadowBlur = 20 * s;
+    ctx.lineWidth = 3 * s;
+    ctx.strokeText(line, cx, y);
+    ctx.shadowBlur = 8 * s;
+    ctx.shadowColor = '#ffffff';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(line, cx, y);
+  });
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = 'transparent';
+}
+
+function drawKirby(ctx, W, H, text, fill, font, style) {
+  const s = Math.min(W, H) / 120;
+  const cx = W/2, cy = H/2;
+  const outerR = Math.min(W, H) * 0.42;
+  const innerR = outerR * 0.72;
+  const spikes = 16;
+  ctx.fillStyle = '#000';
+  starPath(ctx, cx, cy, spikes, outerR + 3 * s, innerR + 3 * s);
+  ctx.fill();
+  ctx.fillStyle = fill;
+  starPath(ctx, cx, cy, spikes, outerR, innerR);
+  ctx.fill();
+  ctx.fillStyle = '#000';
+  let seed = 24680;
+  const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+  const numDots = 36;
+  for (let i = 0; i < numDots; i++) {
+    const angle = rnd() * Math.PI * 2;
+    const dist = outerR * (1.06 + rnd() * 0.4);
+    const dx = cx + Math.cos(angle) * dist;
+    const dy = cy + Math.sin(angle) * dist;
+    if (dx < 3 * s || dx > W - 3 * s || dy < 3 * s || dy > H - 3 * s) continue;
+    const r = (2.5 + rnd() * 5) * s;
+    ctx.save();
+    ctx.translate(dx, dy);
+    ctx.rotate(rnd() * Math.PI * 2);
+    ctx.scale(1, 0.4 + rnd() * 0.7);
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  drawFittedText(ctx, text, cx, cy, innerR * 1.35, innerR * 1.35, style, font, '#ffffff', '#000');
+}
+
+// ---------- helpers ----------
+
+function drawHalftoneBG(ctx, W, H) {
+  const spacing = 9;
+  ctx.fillStyle = 'rgba(20,20,20,0.6)';
+  for (let y = spacing/2; y < H; y += spacing) {
+    for (let x = spacing/2; x < W; x += spacing) {
+      const dx = (x - W/2) / (W/2);
+      const dy = (y - H/2) / (H/2);
+      const d = Math.sqrt(dx*dx + dy*dy);
+      const r = Math.max(0, d * 3.2 - 0.55);
+      if (r < 0.25) continue;
+      ctx.beginPath();
+      ctx.arc(x, y, Math.min(2.5, r), 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
+function drawSpeedSpikes(ctx, cx, cy, outerR, n, innerR, width) {
+  ctx.fillStyle = '#000';
+  for (let i = 0; i < n; i++) {
+    const angle = (i / n) * Math.PI * 2 + 0.12;
+    const dx = Math.cos(angle), dy = Math.sin(angle);
+    const nx = -dy, ny = dx;
+    ctx.beginPath();
+    ctx.moveTo(cx + dx * innerR + nx * width, cy + dy * innerR + ny * width);
+    ctx.lineTo(cx + dx * innerR - nx * width, cy + dy * innerR - ny * width);
+    ctx.lineTo(cx + dx * outerR, cy + dy * outerR);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+function makePolkaPattern(ctx, bgColor, dotColor, dotR, tileSize) {
+  const c = document.createElement('canvas');
+  c.width = tileSize; c.height = tileSize;
+  const p = c.getContext('2d');
+  p.fillStyle = bgColor;
+  p.fillRect(0, 0, tileSize, tileSize);
+  p.fillStyle = dotColor;
+  p.beginPath();
+  p.arc(tileSize * 0.25, tileSize * 0.25, dotR, 0, Math.PI * 2);
+  p.fill();
+  p.beginPath();
+  p.arc(tileSize * 0.75, tileSize * 0.75, dotR, 0, Math.PI * 2);
+  p.fill();
+  return ctx.createPattern(c, 'repeat');
+}
+
+function starPath(ctx, cx, cy, spikes, outerR, innerR) {
+  ctx.beginPath();
+  const step = Math.PI / spikes;
+  let a = -Math.PI / 2;
+  ctx.moveTo(cx + Math.cos(a) * outerR, cy + Math.sin(a) * outerR);
+  for (let i = 0; i < spikes; i++) {
+    a += step;
+    ctx.lineTo(cx + Math.cos(a) * innerR, cy + Math.sin(a) * innerR);
+    a += step;
+    ctx.lineTo(cx + Math.cos(a) * outerR, cy + Math.sin(a) * outerR);
+  }
+  ctx.closePath();
+}
+
+function roundedRectPath(ctx, x, y, w, h, r) {
+  r = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function drawFittedText(ctx, rawText, cx, cy, maxW, maxH, style, font, color, strokeColor) {
+  if (!rawText || !rawText.trim()) return;
+  const text = style.upper ? rawText.toUpperCase() : rawText;
+  const italic = style.italic ? 'italic ' : '';
+  const fit = fitText(ctx, text, maxW, maxH, font, italic);
+  ctx.font = `${italic}bold ${fit.size}px "${font}", cursive`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const lineH = fit.size * 1.08;
+  const startY = cy - (fit.lines.length - 1) * lineH / 2;
+  fit.lines.forEach((line, i) => {
+    const y = startY + i * lineH;
+    if (strokeColor) {
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = Math.max(3, fit.size * 0.12);
+      ctx.lineJoin = 'round';
+      ctx.miterLimit = 2;
+      ctx.strokeText(line, cx, y);
+    }
+    ctx.fillStyle = color;
+    ctx.fillText(line, cx, y);
+  });
+}
+
+function fitText(ctx, text, maxW, maxH, font, italic = '') {
+  let lo = 10, hi = 200, best = 10, bestLines = [text];
+  while (lo <= hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    ctx.font = `${italic}bold ${mid}px "${font}", cursive`;
+    const lines = wrap(ctx, text, maxW);
+    const lineH = mid * 1.08;
+    const totalH = lines.length * lineH;
+    const anyTooWide = lines.some(l => ctx.measureText(l).width > maxW);
+    if (totalH <= maxH && !anyTooWide) { best = mid; bestLines = lines; lo = mid + 1; }
+    else hi = mid - 1;
+  }
+  return { size: best, lines: bestLines };
+}
+
+function wrap(ctx, text, maxW) {
+  const words = text.split(/\s+/);
+  const lines = [];
+  let cur = '';
+  for (const w of words) {
+    const test = cur ? cur + ' ' + w : w;
+    if (ctx.measureText(test).width > maxW && cur) { lines.push(cur); cur = w; }
+    else cur = test;
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+function isDark(hex) {
+  const c = hex.replace('#', '');
+  const r = parseInt(c.substr(0,2), 16);
+  const g = parseInt(c.substr(2,2), 16);
+  const b = parseInt(c.substr(4,2), 16);
+  return (0.299*r + 0.587*g + 0.114*b) < 140;
+}
+
+function shade(hex, amt) {
+  const c = hex.replace('#', '');
+  let r = parseInt(c.substr(0,2), 16);
+  let g = parseInt(c.substr(2,2), 16);
+  let b = parseInt(c.substr(4,2), 16);
+  if (amt < 0) {
+    r = Math.max(0, Math.round(r * (1 + amt)));
+    g = Math.max(0, Math.round(g * (1 + amt)));
+    b = Math.max(0, Math.round(b * (1 + amt)));
+  } else {
+    r = Math.min(255, Math.round(r + (255 - r) * amt));
+    g = Math.min(255, Math.round(g + (255 - g) * amt));
+    b = Math.min(255, Math.round(b + (255 - b) * amt));
+  }
+  return `rgb(${r},${g},${b})`;
+}
+
+function setupCanvas(canvas, w, h) {
+  canvas.width  = Math.round(w * DPR);
+  canvas.height = Math.round(h * DPR);
+  canvas.style.width  = w + 'px';
+  canvas.style.height = h + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.scale(DPR, DPR);
+}
+
+// =====================================================================
+//  PANEL MESH — vertices + panels matching panels.png (10 panels, 22 verts)
+// =====================================================================
+//
+// Initial layout: 4 rows (2/3/2/3 panels) with diagonal gutters. Vertex
+// rows unify divider positions from both adjacent panel rows so every
+// shared edge has vertices at every column-transition — this is what
+// makes the "drag one corner, neighbors follow" mesh work.
+
+// viewBox chosen to match panels.png aspect (1402:1122 ≈ 5:4).
+const VIEW_W = 800, VIEW_H = 626;
+
+// Vertex table + panel polygons derived by pixel-sampling panels.png:
+//   - Outer frame:      x∈[31..1369], y∈[37..1084]  →  scaled to 800×626
+//   - Row-Y boundaries: y=37, 307, 613, 821, 1084   →  0, 161, 344, 468, 626
+//   - Row heights are NOT equal (row 3 is much shorter, matching the ref)
+//   - Column dividers are diagonal — each connects a top-edge vertex to a
+//     bottom-edge vertex at a different x, giving the slanted-gutter look.
+const initialVertices = [
+  // Row 0 (y=0, top edge) — row-1 has 2 panels, so 1 internal divider at x=459
+  { x: 0,   y: 0,   edge: 'corner-tl' },  // 0
+  { x: 459, y: 0,   edge: 'top'       },  // 1
+  { x: 800, y: 0,   edge: 'corner-tr' },  // 2
+  // Row 1 (y=161, row1/row2 divider) — union of row-1 bottom [429] and row-2 top [344, 496]
+  { x: 0,   y: 161, edge: 'left'      },  // 3
+  { x: 344, y: 161, edge: null        },  // 4
+  { x: 429, y: 161, edge: null        },  // 5
+  { x: 496, y: 161, edge: null        },  // 6
+  { x: 800, y: 161, edge: 'right'     },  // 7
+  // Row 2 (y=344, row2/row3 divider) — union of row-2 bottom [377, 528] and row-3 top [411]
+  { x: 0,   y: 344, edge: 'left'      },  // 8
+  { x: 377, y: 344, edge: null        },  // 9
+  { x: 411, y: 344, edge: null        },  // 10
+  { x: 528, y: 344, edge: null        },  // 11
+  { x: 800, y: 344, edge: 'right'     },  // 12
+  // Row 3 (y=468, row3/row4 divider) — union of row-3 bottom [397] and row-4 top [290, 502]
+  { x: 0,   y: 468, edge: 'left'      },  // 13
+  { x: 290, y: 468, edge: null        },  // 14
+  { x: 397, y: 468, edge: null        },  // 15
+  { x: 502, y: 468, edge: null        },  // 16
+  { x: 800, y: 468, edge: 'right'     },  // 17
+  // Row 4 (y=626, bottom edge) — row-4 has 3 panels, so 2 internal dividers at x=264, x=519
+  { x: 0,   y: 626, edge: 'corner-bl' },  // 18
+  { x: 264, y: 626, edge: 'bottom'    },  // 19
+  { x: 519, y: 626, edge: 'bottom'    },  // 20
+  { x: 800, y: 626, edge: 'corner-br' },  // 21
+];
+
+const VERTEX_ROW = [
+  0,0,0,
+  1,1,1,1,1,
+  2,2,2,2,2,
+  3,3,3,3,3,
+  4,4,4,4,
+];
+
+// Panels — vertex ids clockwise from TL. Extra vertices are on shared edges
+// so dragging a shared vertex bends every panel that references it.
+const initialPanels = [
+  { vs: [0, 1, 5, 4, 3] },                  // P1  row1-left
+  { vs: [1, 2, 7, 6, 5] },                  // P2  row1-right
+  { vs: [3, 4, 9, 8] },                     // P3  row2-left
+  { vs: [4, 5, 6, 11, 10, 9] },             // P4  row2-mid
+  { vs: [6, 7, 12, 11] },                   // P5  row2-right
+  { vs: [8, 9, 10, 15, 14, 13] },           // P6  row3-left  (has row-4-top vertex 14)
+  { vs: [10, 11, 12, 17, 16, 15] },         // P7  row3-right (has row-4-top vertex 16)
+  { vs: [13, 14, 19, 18] },                 // P8  row4-left
+  { vs: [14, 15, 16, 20, 19] },             // P9  row4-mid
+  { vs: [16, 17, 21, 20] },                 // P10 row4-right
+];
+
+// Editable text overlays for the pre-placed SVG bubbles — derived from
+// BUBBLE_TEMPLATES so shape + text always align. `noShape: true` skips the
+// canvas draw so the underlying SVG bubble shape reads through.
+
+// =====================================================================
+//  STATE
+// =====================================================================
+
+const state = {
+  vertices: initialVertices.map(v => ({ ...v })),
+  panels:   initialPanels.map((p, i) => ({ id: 'p' + i, vs: [...p.vs] })),
+  panelImages: {},           // panelId -> { url, scale, ox, oy }
+  bubbleOverrides: {},       // tpl-id -> partial template (text/rx/ry/cx/cy/type)
+  selectedPanelId: null,
+  selectedTemplateId: null,  // pre-placed SVG bubble being edited
+  bubbles: [],
+  selectedBubbleId: null,
+  nextBubbleId: 1,
+};
+
+// =====================================================================
+//  RENDER — SVG panels
+// =====================================================================
+
+const svg = document.getElementById('svg-layer');
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function polygonPoints(panel) {
+  return panel.vs.map(id => {
+    const v = state.vertices[id];
+    return `${v.x},${v.y}`;
+  }).join(' ');
+}
+
+// Proper polygon offset — each edge is moved perpendicular to itself by
+// `inset` units toward the interior, then new vertices are computed as the
+// intersection of adjacent offset edges. Produces EQUAL gutter width on
+// every side of every panel (centroid-shrink previously gave uneven results
+// because vertex distances to centroid vary with shape).
+function insetPolygonPoints(panel, inset) {
+  const pts = panel.vs.map(id => state.vertices[id]);
+  const n = pts.length;
+  if (n < 3) return pts.map(p => `${p.x},${p.y}`).join(' ');
+
+  // Detect polygon winding via shoelace; flip normal direction if CCW.
+  let area2 = 0;
+  for (let i = 0; i < n; i++) {
+    const p1 = pts[i], p2 = pts[(i + 1) % n];
+    area2 += (p2.x - p1.x) * (p2.y + p1.y);
+  }
+  const cw = area2 > 0;   // in screen coords (y-down), CW area sum is positive
+
+  // Offset each edge inward.
+  const offEdges = [];
+  for (let i = 0; i < n; i++) {
+    const p1 = pts[i], p2 = pts[(i + 1) % n];
+    const dx = p2.x - p1.x, dy = p2.y - p1.y;
+    const len = Math.hypot(dx, dy) || 1;
+    // Inward normal: for CW winding in y-down, rotate edge dir by -90°
+    let nx = dy / len, ny = -dx / len;
+    if (!cw) { nx = -nx; ny = -ny; }
+    offEdges.push({
+      x1: p1.x + nx * inset, y1: p1.y + ny * inset,
+      x2: p2.x + nx * inset, y2: p2.y + ny * inset,
+    });
+  }
+
+  // Intersect consecutive offset edges to get the new vertex.
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const a = offEdges[(i - 1 + n) % n];
+    const b = offEdges[i];
+    const denom = (a.x1 - a.x2) * (b.y1 - b.y2) - (a.y1 - a.y2) * (b.x1 - b.x2);
+    if (Math.abs(denom) < 1e-6) {
+      // Nearly parallel — fall back to the offset endpoint.
+      out.push({ x: b.x1, y: b.y1 });
+    } else {
+      const t = ((a.x1 - b.x1) * (b.y1 - b.y2) - (a.y1 - b.y1) * (b.x1 - b.x2)) / denom;
+      out.push({ x: a.x1 + t * (a.x2 - a.x1), y: a.y1 + t * (a.y2 - a.y1) });
+    }
+  }
+  return out.map(p => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
+}
+
+// ---- Fully-vector SVG rendering ----
+// Everything is <rect>, <polygon>, <ellipse>, <path> — no raster background,
+// no canvas. Scales cleanly at any zoom level.
+
+// Cream gutter background + white panel interiors + black borders,
+// matching the reference: each panel has its own border with visible
+// cream space between panels (not shared borders).
+const OUTSIDE     = '#faf1e5';   // gutter colour
+const PANEL_FILL  = '#ffffff';
+const BORDER      = '#000';
+const BORDER_W    = 5;
+const PANEL_INSET = 6;           // how far each panel shrinks off its mesh polygon
+const BUBBLE_STROKE_W = 3.5;
+
+function renderPanels() {
+  svg.innerHTML = '';
+  const defs = document.createElementNS(SVG_NS, 'defs');
+  svg.appendChild(defs);
+
+  // Outside-frame background (white — matches panels.png).
+  const bg = document.createElementNS(SVG_NS, 'rect');
+  bg.setAttribute('x', 0); bg.setAttribute('y', 0);
+  bg.setAttribute('width', VIEW_W); bg.setAttribute('height', VIEW_H);
+  bg.setAttribute('fill', OUTSIDE);
+  svg.appendChild(bg);
+
+  state.panels.forEach(panel => {
+    // Inset polygon — this is what the panel actually renders as, leaving
+    // PANEL_INSET units of gutter space between adjacent panels.
+    const points = insetPolygonPoints(panel, PANEL_INSET);
+
+    // clipPath for pasted images (uses inset polygon so images don't spill into gutter)
+    const cp = document.createElementNS(SVG_NS, 'clipPath');
+    cp.setAttribute('id', 'clip-' + panel.id);
+    const cpPoly = document.createElementNS(SVG_NS, 'polygon');
+    cpPoly.setAttribute('points', points);
+    cp.appendChild(cpPoly);
+    defs.appendChild(cp);
+
+    // 1. FILL layer (below image). Captures clicks for panel selection.
+    const fill = document.createElementNS(SVG_NS, 'polygon');
+    fill.setAttribute('points', points);
+    fill.setAttribute('fill', PANEL_FILL);
+    fill.setAttribute('stroke', 'none');
+    fill.setAttribute('data-panel-id', panel.id);
+    fill.style.cursor = 'pointer';
+    fill.addEventListener('mousedown', (e) => {
+      e.stopPropagation();
+      selectPanel(panel.id);
+      // If the panel has a pasted image, drag pans it (crop-adjust) —
+      // no auto-crop on paste, user positions the image manually.
+      const imgD = state.panelImages[panel.id];
+      if (imgD && imgD.url) startImagePan(e, panel.id);
+    });
+    svg.appendChild(fill);
+
+    // 2. Pasted image (if any) — sits BETWEEN fill and border so border
+    //    thickness stays constant no matter the image scale.
+    const imgData = state.panelImages[panel.id];
+    if (imgData && imgData.url) {
+      const bb = panelBBox(panel);
+      const sc = imgData.scale || 1;
+      const w = (bb.x2 - bb.x1) * sc;
+      const h = (bb.y2 - bb.y1) * sc;
+      const x = (bb.x1 + bb.x2) / 2 - w / 2 + (imgData.ox || 0);
+      const y = (bb.y1 + bb.y2) / 2 - h / 2 + (imgData.oy || 0);
+      const img = document.createElementNS(SVG_NS, 'image');
+      img.setAttribute('href', imgData.url);
+      img.setAttribute('x', x); img.setAttribute('y', y);
+      img.setAttribute('width', w); img.setAttribute('height', h);
+      img.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+      img.setAttribute('clip-path', `url(#clip-${panel.id})`);
+      img.style.pointerEvents = 'none';
+      svg.appendChild(img);
+    }
+
+    // 3. BORDER layer (on top of image). Constant BORDER_W regardless of
+    //    what's underneath — the whole point of splitting fill/border.
+    const border = document.createElementNS(SVG_NS, 'polygon');
+    border.setAttribute('points', points);
+    border.setAttribute('fill', 'none');
+    border.setAttribute('stroke', BORDER);
+    border.setAttribute('stroke-width', BORDER_W);
+    border.setAttribute('stroke-linejoin', 'miter');
+    border.setAttribute('stroke-miterlimit', '2');
+    border.setAttribute('data-panel-border', panel.id);
+    border.style.pointerEvents = 'none';
+    svg.appendChild(border);
+
+    // 4. Selection highlight (blue dashed, only when panel selected)
+    const sel = document.createElementNS(SVG_NS, 'polygon');
+    sel.setAttribute('points', points);
+    sel.setAttribute('fill', 'none');
+    sel.setAttribute('stroke', panel.id === state.selectedPanelId ? '#4a90e2' : 'rgba(0,0,0,0)');
+    sel.setAttribute('stroke-width', '4');
+    sel.setAttribute('stroke-dasharray', '8 5');
+    sel.setAttribute('data-panel-stroke', panel.id);
+    sel.style.pointerEvents = 'none';
+    svg.appendChild(sel);
+  });
+
+  // Pre-placed SVG bubbles (with any user overrides applied, skipping deleted)
+  BUBBLE_TEMPLATES.forEach(t => {
+    if (isTemplateDeleted(t)) return;
+    appendSvgBubble(svg, resolveTemplate(t));
+  });
+}
+
+// Redraw polygon points — cheap enough to run every drag frame.
+function updatePanelGeometry() {
+  state.panels.forEach(panel => {
+    const points = insetPolygonPoints(panel, PANEL_INSET);
+    const nodes = svg.querySelectorAll(
+      `polygon[data-panel-id="${panel.id}"], #clip-${panel.id} polygon, polygon[data-panel-border="${panel.id}"], polygon[data-panel-stroke="${panel.id}"]`
+    );
+    nodes.forEach(n => n.setAttribute('points', points));
+  });
+}
+
+// Axis-aligned bounding box of a panel polygon.
+function panelBBox(panel) {
+  const xs = panel.vs.map(id => state.vertices[id].x);
+  const ys = panel.vs.map(id => state.vertices[id].y);
+  return { x1: Math.min(...xs), x2: Math.max(...xs),
+           y1: Math.min(...ys), y2: Math.max(...ys) };
+}
+
+// =====================================================================
+//  SVG BUBBLE SHAPES — pixel-vectorised from panels.png
+// =====================================================================
+//
+// Each template records the type ('speech' or 'thought'), the bubble's
+// centre + radius, and the tail direction. Rendering produces pure SVG
+// (ellipse + triangle for speech; scalloped path + cascading circles for
+// thought) so shapes stay crisp at any zoom level.
+//
+// Coordinates come directly from pixel-sampling panels.png and mapping
+// image coords → viewBox 800×626 via factor 0.598.
+
+// Content sourced from the user's own PDF (`Roommate Etiquette - Don Passive
+// (2026).pdf`) — 10 slides mapped 1:1 onto the 10 panels. Each panel holds
+// multiple small bubbles that TOGETHER convey the slide's full info.
+//
+// Bubble types:
+//   orangebox   — STEP N badge (rectangular, orange fill, black border)
+//   comicspeech — chunky rounded-rect title bubble (heavy black border)
+//   speech      — classic ellipse speech, black-outlined
+//   thought     — scalloped thought cloud with cascading tail circles
+//
+// Panels (left→right, top→bottom):
+//   P1 title | P2 step1 | P3 step2 | P4 step3 | P5 step4 |
+//   P6 step5 | P7 step6 | P8 step7 | P9 step8 | P10 help
+// ═══ Layout: (a) shape-cropped panels.png bubbles at their ORIGINAL
+// positions with short punchy text inside, (b) white comicspeech narration
+// bars packed with rich prose from each slide, (c) a small yellow STEP
+// badge per panel. `*word*` = italic emphasis.
+const BUBBLE_TEMPLATES = [
+  // ═══ P1 — TITLE (row1-left, x 20-440, y 5-155) ═══════════════════
+  { type: 'imagebubble', url: 'cutouts/r1-left-speech.png',
+    cx: 65, cy: 22, rx: 42, ry: 12, align: 'center', text: 'READ!' },
+  { type: 'yellowbox', cx: 245, cy: 20, rx: 125, ry: 10, align: 'center',
+    text: 'ROOMMATE ETIQUETTE!' },
+  { type: 'yellowbox', cx: 245, cy: 42, rx: 105, ry: 7, align: 'center',
+    text: 'How to be a *good* roommate' },
+  { type: 'yellowbox', cx: 245, cy: 60, rx: 80, ry: 6, align: 'center',
+    text: 'Don Passive · 8 steps' },
+  // image space: y=72-150 (78 tall × 420 wide)
+
+  // ═══ P2 — STEP 1: ESTABLISH GUIDELINES ════════════════════════════
+  { type: 'imagebubble', url: 'cutouts/r1-right-speech.png',
+    cx: 495, cy: 28, rx: 32, ry: 16, align: 'center', text: '*OY!*' },
+  { type: 'yellowbox', cx: 590, cy: 22, rx: 30, ry: 8, align: 'center',
+    text: 'STEP 1' },
+  { type: 'yellowbox', cx: 700, cy: 22, rx: 55, ry: 8, align: 'center',
+    text: '*GUIDELINES*' },
+  { type: 'yellowbox', cx: 625, cy: 50, rx: 145, ry: 7, align: 'left',
+    text: 'Agree on schedules & day-to-day rules' },
+  { type: 'yellowbox', cx: 625, cy: 68, rx: 145, ry: 7, align: 'left',
+    text: '*Cleanliness · Guests · Communication*' },
+  { type: 'yellowbox', cx: 625, cy: 84, rx: 145, ry: 6, align: 'left',
+    text: '→ agreement with your Don' },
+  // image space: y=94-150 (56 tall)
+
+  // ═══ P3 — STEP 2: RESPECT PERSONAL SPACE (bounds x 26-354) ════════
+  { type: 'imagebubble', url: 'cutouts/r2-left-thought.png',
+    cx: 285, cy: 210, rx: 48, ry: 30, align: 'center', text: '*hmm..*' },
+  { type: 'yellowbox', cx: 52, cy: 195, rx: 22, ry: 8, align: 'center',
+    text: 'STEP 2' },
+  { type: 'yellowbox', cx: 140, cy: 195, rx: 50, ry: 8, align: 'center',
+    text: '*RESPECT SPACE*' },
+  { type: 'yellowbox', cx: 100, cy: 220, rx: 62, ry: 7, align: 'left',
+    text: '*Never* enter uninvited' },
+  { type: 'yellowbox', cx: 100, cy: 238, rx: 62, ry: 7, align: 'left',
+    text: 'Keep to your side' },
+  { type: 'yellowbox', cx: 190, cy: 262, rx: 155, ry: 8, align: 'center',
+    text: '*Shared space ≠ shared everything*' },
+  // image space: y=272-330 (~55 tall × full width)
+
+  // ═══ P4 — STEP 3: RESPECT BELONGINGS ══════════════════════════════
+  { type: 'imagebubble', url: 'cutouts/r2-mid-speech.png',
+    cx: 415, cy: 200, rx: 32, ry: 12, align: 'center', text: '*ASK!*' },
+  { type: 'yellowbox', cx: 337, cy: 195, rx: 22, ry: 8, align: 'center',
+    text: 'STEP 3' },
+  { type: 'yellowbox', cx: 480, cy: 195, rx: 42, ry: 8, align: 'center',
+    text: '*BELONGINGS*' },
+  { type: 'yellowbox', cx: 435, cy: 226, rx: 78, ry: 7, align: 'left',
+    text: '*ASK* before borrowing' },
+  { type: 'yellowbox', cx: 435, cy: 246, rx: 78, ry: 7, align: 'left',
+    text: 'Return it *as found*' },
+  // image space: y=256-330
+
+  // ═══ P5 — STEP 4: CLEAN UP AFTER YOURSELF ═════════════════════════
+  { type: 'imagebubble', url: 'cutouts/r2-right-speech.png',
+    cx: 685, cy: 200, rx: 38, ry: 14, align: 'center', text: '*CLEAN!*' },
+  { type: 'yellowbox', cx: 585, cy: 195, rx: 22, ry: 8, align: 'center',
+    text: 'STEP 4' },
+  { type: 'yellowbox', cx: 720, cy: 195, rx: 42, ry: 8, align: 'center',
+    text: '*CLEAN UP*' },
+  { type: 'yellowbox', cx: 680, cy: 226, rx: 92, ry: 7, align: 'left',
+    text: '*YOU* made it → YOU clean it' },
+  { type: 'yellowbox', cx: 680, cy: 246, rx: 92, ry: 7, align: 'left',
+    text: 'Make a *cleaning schedule*' },
+  // image space: y=256-330
+
+  // ═══ P6 — STEP 5: ADDRESS CONCERNS (short panel) ══════════════════
+  { type: 'imagebubble', url: 'cutouts/r3-left-speech.png',
+    cx: 80, cy: 388, rx: 42, ry: 12, align: 'center', text: '*speak!*' },
+  { type: 'yellowbox', cx: 175, cy: 368, rx: 25, ry: 7, align: 'center',
+    text: 'STEP 5' },
+  { type: 'yellowbox', cx: 285, cy: 368, rx: 70, ry: 7, align: 'center',
+    text: '*ADDRESS CONCERNS*' },
+  { type: 'yellowbox', cx: 235, cy: 394, rx: 125, ry: 7, align: 'left',
+    text: 'Bottling → *EXPLOSIVE* argument' },
+  { type: 'yellowbox', cx: 235, cy: 412, rx: 125, ry: 7, align: 'left',
+    text: 'Speak up. Your *Don* guides.' },
+  // image space: y=424-460
+
+  // ═══ P7 — STEP 6: DON'T EXPECT BEST FRIENDS (short panel) ═════════
+  { type: 'imagebubble', url: 'cutouts/r3-right-thought.png',
+    cx: 470, cy: 388, rx: 22, ry: 18, align: 'center', text: 'friends?' },
+  { type: 'yellowbox', cx: 540, cy: 368, rx: 25, ry: 7, align: 'center',
+    text: 'STEP 6' },
+  { type: 'yellowbox', cx: 680, cy: 368, rx: 80, ry: 7, align: 'center',
+    text: '*NOT BEST FRIENDS*' },
+  { type: 'yellowbox', cx: 615, cy: 394, rx: 130, ry: 7, align: 'left',
+    text: 'You *might* still be — no pressure' },
+  { type: 'yellowbox', cx: 615, cy: 412, rx: 130, ry: 7, align: 'left',
+    text: 'Just be *friendly*' },
+  // image space: y=424-460
+
+  // ═══ P8 — STEP 7: BE OPEN TO CHANGE (narrow) ══════════════════════
+  { type: 'imagebubble', url: 'cutouts/r4-left-speech.png',
+    cx: 65, cy: 493, rx: 38, ry: 10, align: 'center', text: '*OPEN!*' },
+  { type: 'yellowbox', cx: 170, cy: 490, rx: 55, ry: 8, align: 'center',
+    text: '*BE OPEN*' },
+  { type: 'yellowbox', cx: 140, cy: 520, rx: 108, ry: 7, align: 'center',
+    text: 'STEP 7 · new customs' },
+  { type: 'yellowbox', cx: 140, cy: 538, rx: 108, ry: 8, align: 'center',
+    text: '*Go with the flow!*' },
+  // image space: y=550-620
+
+  // ═══ P9 — STEP 8: SHARED SPACE ════════════════════════════════════
+  { type: 'imagebubble', url: 'cutouts/r4-mid-speech.png',
+    cx: 375, cy: 493, rx: 30, ry: 10, align: 'center', text: '*8 MOS!*' },
+  { type: 'yellowbox', cx: 470, cy: 490, rx: 45, ry: 8, align: 'center',
+    text: 'STEP 8 · *SHARED*' },
+  { type: 'yellowbox', cx: 410, cy: 522, rx: 105, ry: 7, align: 'left',
+    text: 'Warn about guests coming' },
+  { type: 'yellowbox', cx: 410, cy: 540, rx: 105, ry: 7, align: 'left',
+    text: 'Check *music/noise* comfort' },
+  // image space: y=550-620
+
+  // ═══ P10 — CONCERNS? PROBLEMS? ════════════════════════════════════
+  { type: 'imagebubble', url: 'cutouts/r4-right-speech.png',
+    cx: 720, cy: 493, rx: 38, ry: 10, align: 'center', text: '*HELP!*' },
+  { type: 'yellowbox', cx: 620, cy: 490, rx: 62, ry: 8, align: 'center',
+    text: '*STILL STUCK?*' },
+  { type: 'yellowbox', cx: 655, cy: 520, rx: 105, ry: 7, align: 'left',
+    text: '1. Talk to your *roommate*' },
+  { type: 'yellowbox', cx: 655, cy: 538, rx: 105, ry: 7, align: 'left',
+    text: '2. Talk to your *Don*' },
+  { type: 'yellowbox', cx: 655, cy: 556, rx: 105, ry: 7, align: 'left',
+    text: '3. Res & Student Life' },
+  // image space: y=566-620
+];
+// Stable IDs so state.bubbleOverrides keys survive template edits.
+BUBBLE_TEMPLATES.forEach((t, i) => { t.id = 'tpl-' + i; });
+
+// User edits (text, size, style, position) applied on top of BUBBLE_TEMPLATES.
+// Persisted alongside vertices in localStorage.
+function resolveTemplate(t) {
+  const o = state.bubbleOverrides && state.bubbleOverrides[t.id];
+  return o ? { ...t, ...o } : t;
+}
+function isTemplateDeleted(t) {
+  const o = state.bubbleOverrides && state.bubbleOverrides[t.id];
+  return o && o.deleted;
+}
+
+// Default body font — Comic Neue. Matches the exact Silver Age Marvel
+// narration lettering shown in the reference (top of screenshot5656.jpg):
+// bold uppercase with italic emphasis on key words.
+let currentFont = 'Comic Neue';
+
+// Fill colour + ink colour per rect type. Used by both the drawer and the
+// WYSIWYG editor overlay so what you edit looks exactly like what renders.
+const TYPE_STYLE = {
+  yellowbox:       { fill: '#f5e688', ink: '#000', shadow: false, radius: 0, forceUpper: true },
+  orangebox:       { fill: '#ff8c1a', ink: '#000', shadow: false, radius: 0 },
+  redbox:          { fill: '#e63328', ink: '#fff', shadow: false, radius: 0 },
+  pinkbox:         { fill: '#ff8fb8', ink: '#000', shadow: false, radius: 0, forceUpper: true },
+  yellowhighlight: { fill: '#f8e71c', ink: '#000', shadow: true,  radius: 0, alwaysItalic: true },
+  blueflag:        { fill: '#4a90e2', ink: '#fff', shadow: true,  radius: 0, alwaysItalic: true },
+  quotebubble:     { fill: '#ffffff', ink: '#000', shadow: false, radius: 10, autoQuote: true },
+  comicspeech:     { fill: '#ffffff', ink: '#000', shadow: false, radius: 22 },
+  // Shape-cropped PNGs from panels.png — bubble shape lives in the image,
+  // text is overlaid via drawSvgBubbleText.
+  imagebubble:     { fill: 'transparent', ink: '#000', shadow: false, radius: 0 },
+};
+
+function appendSvgBubble(parent, t) {
+  const g = document.createElementNS(SVG_NS, 'g');
+  g.setAttribute('class', 'svg-bubble');
+  g.setAttribute('data-tpl-id', t.id);
+  g.style.pointerEvents = 'auto';
+  g.style.cursor = 'move';
+  if      (t.type === 'speech')          drawSvgSpeech(g, t);
+  else if (t.type === 'thought')         drawSvgThought(g, t);
+  else if (t.type === 'yellowhighlight') drawSvgShadowRect(g, t, '#f8e71c');
+  else if (t.type === 'blueflag')        drawSvgShadowRect(g, t, '#4a90e2');
+  else if (t.type === 'quotebubble')     drawSvgRoundedRect(g, t, '#fff', 10);
+  else if (t.type === 'orangebox')       drawSvgRectCallout(g, t, '#ff8c1a');
+  else if (t.type === 'redbox')          drawSvgRectCallout(g, t, '#e63328');
+  else if (t.type === 'pinkbox')         drawSvgRectCallout(g, t, '#ff8fb8');
+  else if (t.type === 'yellowbox')       drawSvgRectCallout(g, t, '#f5e688');
+  else if (t.type === 'comicspeech')     drawSvgComicSpeech(g, t);
+  else if (t.type === 'imagebubble')     drawSvgImageBubble(g, t);
+  // Skip in-SVG text when this template is being edited — the editor's
+  // textarea sits on top and provides live WYSIWYG rendering.
+  if (t.text && state.selectedTemplateId !== t.id) drawSvgBubbleText(g, t);
+  // Selection halo (visible only when this template is being edited)
+  if (state.selectedTemplateId === t.id) {
+    const halo = document.createElementNS(SVG_NS, 'rect');
+    halo.setAttribute('x', t.cx - t.rx - 6);
+    halo.setAttribute('y', t.cy - t.ry - 6);
+    halo.setAttribute('width',  t.rx * 2 + 12);
+    halo.setAttribute('height', t.ry * 2 + 12);
+    halo.setAttribute('fill', 'none');
+    halo.setAttribute('stroke', '#4a90e2');
+    halo.setAttribute('stroke-width', '2');
+    halo.setAttribute('stroke-dasharray', '6 4');
+    halo.style.pointerEvents = 'none';
+    g.appendChild(halo);
+  }
+  // Click OR drag: if the mouse moves > 3px between down/up it's a drag,
+  // else it's a click that opens the editor. This lets you reposition any
+  // template bubble directly, without opening the editor first.
+  g.addEventListener('mousedown', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const startX = e.clientX, startY = e.clientY;
+    const startCx = t.cx, startCy = t.cy;
+    let moved = false;
+    function onMove(ev) {
+      const stg = stagePixelSize();
+      const dx = (ev.clientX - startX) * (VIEW_W / stg.w);
+      const dy = (ev.clientY - startY) * (VIEW_H / stg.h);
+      if (!moved && Math.hypot(dx, dy) > 3) moved = true;
+      if (!moved) return;
+      const cx = startCx + dx, cy = startCy + dy;
+      updateOverride(t.id, { cx, cy });
+      renderPanels();
+      // Keep any open editor tracking the new position
+      const ed = document.querySelector('.tpl-editor');
+      if (ed && state.selectedTemplateId === t.id) positionEditor(ed, { cx, cy, rx: t.rx, ry: t.ry });
+    }
+    function onUp() {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      if (!moved) openTemplateEditor(t.id);
+    }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  });
+  parent.appendChild(g);
+}
+
+// Sharp rectangular callout with heavy black border (STEP badges etc).
+function drawSvgRectCallout(g, t, fill) {
+  const { cx, cy, rx, ry } = t;
+  const bw = 2.5;
+  const outer = document.createElementNS(SVG_NS, 'rect');
+  outer.setAttribute('x', cx - rx - bw); outer.setAttribute('y', cy - ry - bw);
+  outer.setAttribute('width', rx*2 + bw*2); outer.setAttribute('height', ry*2 + bw*2);
+  outer.setAttribute('fill', '#000');
+  g.appendChild(outer);
+  const inner = document.createElementNS(SVG_NS, 'rect');
+  inner.setAttribute('x', cx - rx); inner.setAttribute('y', cy - ry);
+  inner.setAttribute('width', rx*2); inner.setAttribute('height', ry*2);
+  inner.setAttribute('fill', fill);
+  g.appendChild(inner);
+}
+
+// Same as drawSvgRectCallout but with a hard drop shadow — matches the
+// yellow-highlight and blue-flag styles in image 2.
+function drawSvgShadowRect(g, t, fill) {
+  const { cx, cy, rx, ry } = t;
+  const bw = 2.5;
+  const off = 3.5;
+  const sh = document.createElementNS(SVG_NS, 'rect');
+  sh.setAttribute('x', cx - rx - bw + off); sh.setAttribute('y', cy - ry - bw + off);
+  sh.setAttribute('width', rx*2 + bw*2);    sh.setAttribute('height', ry*2 + bw*2);
+  sh.setAttribute('fill', 'rgba(0,0,0,0.42)');
+  g.appendChild(sh);
+  const outer = document.createElementNS(SVG_NS, 'rect');
+  outer.setAttribute('x', cx - rx - bw); outer.setAttribute('y', cy - ry - bw);
+  outer.setAttribute('width', rx*2 + bw*2); outer.setAttribute('height', ry*2 + bw*2);
+  outer.setAttribute('fill', '#000');
+  g.appendChild(outer);
+  const inner = document.createElementNS(SVG_NS, 'rect');
+  inner.setAttribute('x', cx - rx); inner.setAttribute('y', cy - ry);
+  inner.setAttribute('width', rx*2); inner.setAttribute('height', ry*2);
+  inner.setAttribute('fill', fill);
+  g.appendChild(inner);
+}
+
+// Bubble shape supplied as a PNG cut out from panels.png (transparent
+// background, black outline + white interior baked in). Text overlays on top.
+function drawSvgImageBubble(g, t) {
+  const { cx, cy, rx, ry, url } = t;
+  if (!url) return;
+  const img = document.createElementNS(SVG_NS, 'image');
+  img.setAttribute('href', url);
+  img.setAttribute('x', cx - rx);
+  img.setAttribute('y', cy - ry);
+  img.setAttribute('width',  rx * 2);
+  img.setAttribute('height', ry * 2);
+  img.setAttribute('preserveAspectRatio', 'none');
+  img.style.pointerEvents = 'none';
+  g.appendChild(img);
+}
+
+// White rounded rect with thin black border — the "check" quote style.
+function drawSvgRoundedRect(g, t, fill, radius) {
+  const { cx, cy, rx, ry } = t;
+  const bw = 2.5;
+  const outer = document.createElementNS(SVG_NS, 'rect');
+  outer.setAttribute('x', cx - rx - bw); outer.setAttribute('y', cy - ry - bw);
+  outer.setAttribute('width', rx*2 + bw*2); outer.setAttribute('height', ry*2 + bw*2);
+  outer.setAttribute('rx', radius + bw); outer.setAttribute('ry', radius + bw);
+  outer.setAttribute('fill', '#000');
+  g.appendChild(outer);
+  const inner = document.createElementNS(SVG_NS, 'rect');
+  inner.setAttribute('x', cx - rx); inner.setAttribute('y', cy - ry);
+  inner.setAttribute('width', rx*2); inner.setAttribute('height', ry*2);
+  inner.setAttribute('rx', radius); inner.setAttribute('ry', radius);
+  inner.setAttribute('fill', fill);
+  g.appendChild(inner);
+}
+
+// Chunky rounded speech (newscreenshot.png "WIELD THE CROSSBAR I…" look).
+function drawSvgComicSpeech(g, t) {
+  const { cx, cy, rx, ry } = t;
+  const bw = 3;
+  const r = Math.min(rx, ry) * 0.4;
+  const outer = document.createElementNS(SVG_NS, 'rect');
+  outer.setAttribute('x', cx - rx - bw); outer.setAttribute('y', cy - ry - bw);
+  outer.setAttribute('width', rx*2 + bw*2); outer.setAttribute('height', ry*2 + bw*2);
+  outer.setAttribute('rx', r + bw); outer.setAttribute('ry', r + bw);
+  outer.setAttribute('fill', '#000');
+  g.appendChild(outer);
+  const inner = document.createElementNS(SVG_NS, 'rect');
+  inner.setAttribute('x', cx - rx); inner.setAttribute('y', cy - ry);
+  inner.setAttribute('width', rx*2); inner.setAttribute('height', ry*2);
+  inner.setAttribute('rx', r); inner.setAttribute('ry', r);
+  inner.setAttribute('fill', '#fff');
+  g.appendChild(inner);
+}
+
+// SVG <text> centered inside the bubble, sized to fit the interior. Splits on
+// spaces into up to 3 wrapped lines so longer captions still read cleanly.
+// Split a line into segments, each { text, italic }. `*word*` toggles italic.
+function parseItalicSegments(line) {
+  const parts = [];
+  const re = /\*([^*]+)\*/g;
+  let last = 0, m;
+  while ((m = re.exec(line)) !== null) {
+    if (m.index > last) parts.push({ text: line.slice(last, m.index), italic: false });
+    parts.push({ text: m[1], italic: true });
+    last = re.lastIndex;
+  }
+  if (last < line.length) parts.push({ text: line.slice(last), italic: false });
+  return parts.length ? parts : [{ text: line, italic: false }];
+}
+const stripMarkers = s => s.replace(/\*/g, '');
+
+function drawSvgBubbleText(g, t) {
+  const { cx, cy, rx, ry, align = 'center' } = t;
+  const spec = TYPE_STYLE[t.type] || { fill: '#fff', ink: '#000' };
+  let text = t.text;
+  if (spec.autoQuote && text) text = `"${text.replace(/^"|"$/g, '')}"`;
+  if (spec.forceUpper && text) text = text.toUpperCase();
+
+  const isRect = !!TYPE_STYLE[t.type];
+  // Image bubbles are rasters with curved interiors; text needs more padding
+  // so it lands inside the bubble's actual white area, not the corners.
+  const isImage = t.type === 'imagebubble';
+  const padX = isImage ? rx * 0.25 : (isRect ? rx * 0.08 : rx * 0.2);
+  const padY = isImage ? ry * 0.28 : (isRect ? ry * 0.14 : ry * 0.2);
+  const areaW = (rx - padX) * 2;
+  const areaH = (ry - padY) * 2;
+
+  const lines = text.includes('\n') ? text.split('\n') : wrapForBubble(text, areaW);
+  const stripped = lines.map(stripMarkers);
+
+  const perLine = areaH / lines.length;
+  const longest = Math.max(3, ...stripped.map(l => l.length));
+  let fontPx = Math.min(perLine * 0.82, areaW / (longest * 0.52));
+  fontPx = Math.max(7, Math.min(fontPx, 36));
+
+  const lineH = fontPx * 1.15;
+  const totalH = lines.length * lineH;
+  const startY = cy - totalH / 2 + fontPx * 0.85;
+  const textX  = align === 'left' ? (cx - rx + padX) : cx;
+  const anchor = align === 'left' ? 'start' : 'middle';
+  const font = t.font || currentFont;
+  const italicAll = spec.alwaysItalic;
+
+  lines.forEach((line, i) => {
+    if (!line.trim()) return;
+    const txt = document.createElementNS(SVG_NS, 'text');
+    txt.setAttribute('x', textX);
+    txt.setAttribute('y', startY + i * lineH);
+    txt.setAttribute('text-anchor', anchor);
+    txt.setAttribute('font-family', `"${font}", system-ui, sans-serif`);
+    txt.setAttribute('font-weight', '700');
+    txt.setAttribute('font-size', fontPx);
+    txt.setAttribute('fill', spec.ink);
+    txt.setAttribute('class', 'bubble-text');
+    if (italicAll) txt.setAttribute('font-style', 'italic');
+    parseItalicSegments(line).forEach(seg => {
+      const tspan = document.createElementNS(SVG_NS, 'tspan');
+      if (seg.italic && !italicAll) tspan.setAttribute('font-style', 'italic');
+      tspan.textContent = seg.text;
+      txt.appendChild(tspan);
+    });
+    g.appendChild(txt);
+  });
+}
+
+function wrapForBubble(text, maxChars) {
+  const perLineChars = Math.max(4, Math.floor(maxChars / 5.2));
+  const words = text.split(/\s+/);
+  const lines = [];
+  let cur = '';
+  for (const w of words) {
+    if (!cur.length) { cur = w; continue; }
+    if ((cur + ' ' + w).length > perLineChars) { lines.push(cur); cur = w; }
+    else cur += ' ' + w;
+  }
+  if (cur) lines.push(cur);
+  return lines.slice(0, 4);
+}
+
+// Speech: black-outlined white ellipse + short pointed tail off one edge.
+function drawSvgSpeech(g, t) {
+  const { cx, cy, rx, ry } = t;
+  // Ellipse body
+  const e = document.createElementNS(SVG_NS, 'ellipse');
+  e.setAttribute('cx', cx); e.setAttribute('cy', cy);
+  e.setAttribute('rx', rx); e.setAttribute('ry', ry);
+  e.setAttribute('fill', '#fff');
+  e.setAttribute('stroke', BORDER);
+  e.setAttribute('stroke-width', BUBBLE_STROKE_W);
+  g.appendChild(e);
+  // Tail — small triangle attached to the side/bottom of the ellipse.
+  const tailLen = 12;
+  let base1, base2, tip;
+  if (t.tail === 'r') {
+    base1 = { x: cx + rx * 0.6, y: cy + ry * 0.7 };
+    base2 = { x: cx + rx * 0.9, y: cy + ry * 0.2 };
+    tip   = { x: cx + rx + tailLen, y: cy + ry * 0.5 };
+  } else if (t.tail === 'b') {
+    base1 = { x: cx - rx * 0.15, y: cy + ry * 0.85 };
+    base2 = { x: cx + rx * 0.15, y: cy + ry * 0.85 };
+    tip   = { x: cx - rx * 0.05, y: cy + ry + tailLen };
+  } else {
+    base1 = { x: cx - rx * 0.6, y: cy + ry * 0.7 };
+    base2 = { x: cx - rx * 0.2, y: cy + ry * 0.9 };
+    tip   = { x: cx - rx * 0.75, y: cy + ry + tailLen };
+  }
+  const tailPoly = document.createElementNS(SVG_NS, 'polygon');
+  tailPoly.setAttribute('points', `${base1.x},${base1.y} ${tip.x},${tip.y} ${base2.x},${base2.y}`);
+  tailPoly.setAttribute('fill', '#fff');
+  tailPoly.setAttribute('stroke', BORDER);
+  tailPoly.setAttribute('stroke-width', BUBBLE_STROKE_W);
+  tailPoly.setAttribute('stroke-linejoin', 'round');
+  g.appendChild(tailPoly);
+  // A short white line covers the seam between ellipse and tail base.
+  const seam = document.createElementNS(SVG_NS, 'line');
+  seam.setAttribute('x1', base1.x); seam.setAttribute('y1', base1.y);
+  seam.setAttribute('x2', base2.x); seam.setAttribute('y2', base2.y);
+  seam.setAttribute('stroke', '#fff');
+  seam.setAttribute('stroke-width', BUBBLE_STROKE_W + 1);
+  g.appendChild(seam);
+}
+
+// Thought: ellipse ringed by scallops + 3 cascading tail circles. Two-pass
+// (black outer then white inner) so scallop edges merge cleanly.
+function drawSvgThought(g, t) {
+  const { cx, cy, rx, ry } = t;
+  const bw = 1.6;
+  const puffs = 10;
+  const puffR = Math.min(rx, ry) * 0.32;
+  const tailX = cx - rx * 0.42;
+
+  // OUTLINE (black, outset)
+  const oute = document.createElementNS(SVG_NS, 'ellipse');
+  oute.setAttribute('cx', cx); oute.setAttribute('cy', cy);
+  oute.setAttribute('rx', rx + bw); oute.setAttribute('ry', ry + bw);
+  oute.setAttribute('fill', BORDER);
+  g.appendChild(oute);
+  for (let i = 0; i < puffs; i++) {
+    const a = (i / puffs) * Math.PI * 2 - Math.PI/2;
+    const px = cx + Math.cos(a) * rx;
+    const py = cy + Math.sin(a) * ry;
+    const c = document.createElementNS(SVG_NS, 'circle');
+    c.setAttribute('cx', px); c.setAttribute('cy', py);
+    c.setAttribute('r', puffR + bw);
+    c.setAttribute('fill', BORDER);
+    g.appendChild(c);
+  }
+  [[tailX,           cy + ry + 12, 10],
+   [tailX - 14,      cy + ry + 24, 6],
+   [tailX - 24,      cy + ry + 33, 3]].forEach(([x, y, r]) => {
+    const c = document.createElementNS(SVG_NS, 'circle');
+    c.setAttribute('cx', x); c.setAttribute('cy', y);
+    c.setAttribute('r', r + bw); c.setAttribute('fill', BORDER);
+    g.appendChild(c);
+  });
+
+  // FILL (white, inset — hides seams)
+  const inne = document.createElementNS(SVG_NS, 'ellipse');
+  inne.setAttribute('cx', cx); inne.setAttribute('cy', cy);
+  inne.setAttribute('rx', rx - bw); inne.setAttribute('ry', ry - bw);
+  inne.setAttribute('fill', '#fff');
+  g.appendChild(inne);
+  for (let i = 0; i < puffs; i++) {
+    const a = (i / puffs) * Math.PI * 2 - Math.PI/2;
+    const px = cx + Math.cos(a) * rx;
+    const py = cy + Math.sin(a) * ry;
+    const c = document.createElementNS(SVG_NS, 'circle');
+    c.setAttribute('cx', px); c.setAttribute('cy', py);
+    c.setAttribute('r', puffR - bw); c.setAttribute('fill', '#fff');
+    g.appendChild(c);
+  }
+  // Central seam-hider (slightly smaller than the outer ellipse)
+  const hide = document.createElementNS(SVG_NS, 'ellipse');
+  hide.setAttribute('cx', cx); hide.setAttribute('cy', cy);
+  hide.setAttribute('rx', rx * 0.96); hide.setAttribute('ry', ry * 0.96);
+  hide.setAttribute('fill', '#fff');
+  g.appendChild(hide);
+  [[tailX,           cy + ry + 12, 7],
+   [tailX - 14,      cy + ry + 24, 3],
+   [tailX - 24,      cy + ry + 33, 1]].forEach(([x, y, r]) => {
+    const c = document.createElementNS(SVG_NS, 'circle');
+    c.setAttribute('cx', x); c.setAttribute('cy', y);
+    c.setAttribute('r', r); c.setAttribute('fill', '#fff');
+    g.appendChild(c);
+  });
+}
+
+// =====================================================================
+//  RENDER — HTML vertex handles
+// =====================================================================
+
+const handleLayer = document.getElementById('handle-layer');
+
+function renderHandles() {
+  handleLayer.innerHTML = '';
+  state.vertices.forEach((v, id) => {
+    // Skip pinned corners AND left/right edge verts (no horizontal freedom).
+    if (v.edge && (v.edge.startsWith('corner') || v.edge === 'left' || v.edge === 'right')) return;
+    const h = document.createElement('div');
+    h.className = 'vhandle';
+    h.style.left = (v.x / VIEW_W * 100) + '%';
+    h.style.top  = (v.y / VIEW_H * 100) + '%';
+    h.dataset.vid = id;
+    h.addEventListener('mousedown', (e) => startVertexDrag(e, id, h));
+    handleLayer.appendChild(h);
+  });
+}
+
+function updateHandlePositions() {
+  handleLayer.querySelectorAll('.vhandle').forEach(h => {
+    const v = state.vertices[+h.dataset.vid];
+    h.style.left = (v.x / VIEW_W * 100) + '%';
+    h.style.top  = (v.y / VIEW_H * 100) + '%';
+  });
+}
+
+// =====================================================================
+//  VERTEX DRAG — shared-vertex propagation via updatePanelGeometry
+// =====================================================================
+
+function stagePixelSize() {
+  const rect = document.getElementById('stage').getBoundingClientRect();
+  return { w: rect.width, h: rect.height };
+}
+
+function startVertexDrag(e, vid, handleEl) {
+  e.preventDefault();
+  e.stopPropagation();
+  // Left/right edge verts have no horizontal freedom; skip.
+  const v = state.vertices[vid];
+  if (v.edge === 'left' || v.edge === 'right') return;
+  const origX = v.x;
+  const startClientX = e.clientX;
+  handleEl.classList.add('dragging');
+  document.body.style.cursor = 'ew-resize';
+
+  // Same-row neighbours only (X clamp)
+  const row = VERTEX_ROW[vid];
+  const sameRow = state.vertices
+    .map((vv, i) => ({ i, vv, row: VERTEX_ROW[i] }))
+    .filter(o => o.row === row);
+  const leftX  = Math.max(...sameRow.filter(o => o.vv.x < origX).map(o => o.vv.x), -Infinity);
+  const rightX = Math.min(...sameRow.filter(o => o.vv.x > origX).map(o => o.vv.x),  Infinity);
+  const CLAMP_PAD = 20;
+
+  function onMove(ev) {
+    const stg = stagePixelSize();
+    const dxWorld = (ev.clientX - startClientX) * (VIEW_W / stg.w);
+    let nx = origX + dxWorld;
+    nx = Math.max(leftX + CLAMP_PAD, Math.min(rightX - CLAMP_PAD, nx));
+    v.x = nx;    // Y locked — vertices only slide horizontally.
+    updatePanelGeometry();
+    updateHandlePositions();
+  }
+  function onUp() {
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onUp);
+    handleEl.classList.remove('dragging');
+    document.body.style.cursor = '';
+    saveState();
+  }
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+}
+
+// =====================================================================
+//  PANEL SELECTION + IMAGE PASTE
+// =====================================================================
+
+function selectPanel(panelId) {
+  state.selectedPanelId = panelId;
+  svg.querySelectorAll('polygon[data-panel-stroke]').forEach(n => {
+    n.setAttribute('stroke', n.dataset.panelStroke === panelId ? '#4a90e2' : 'rgba(0,0,0,0)');
+  });
+  if (state.selectedBubbleId !== null) selectBubble(null);
+}
+
+function deselectAll() {
+  state.selectedPanelId = null;
+  svg.querySelectorAll('polygon[data-panel-stroke]').forEach(n => {
+    n.setAttribute('stroke', 'rgba(0,0,0,0)');
+  });
+  if (state.selectedBubbleId !== null) selectBubble(null);
+}
+
+window.addEventListener('paste', (e) => {
+  const target = e.target;
+  const isTextField = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA');
+  if (isTextField) return;
+
+  const items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+  let imageBlob = null;
+  for (const it of items) {
+    if (it.type && it.type.startsWith('image/')) {
+      imageBlob = it.getAsFile();
+      if (imageBlob) break;
+    }
+  }
+  if (!imageBlob) return;
+  e.preventDefault();
+  const reader = new FileReader();
+  reader.onload = () => {
+    // Panel selected → set as that panel's background (existing behavior).
+    if (state.selectedPanelId) {
+      state.panelImages[state.selectedPanelId] = { url: reader.result, scale: 1, ox: 0, oy: 0 };
+      renderPanels();
+      saveState();
+      showToast('Image pasted — drag to move · scroll to zoom');
+      return;
+    }
+    // Otherwise drop as a floating image bubble at the stage center.
+    const probe = new Image();
+    probe.onload = () => {
+      const maxDim = Math.min(VIEW_W, VIEW_H) * 0.55;
+      const scale = Math.min(1, maxDim / Math.max(probe.naturalWidth, probe.naturalHeight));
+      const w = Math.max(60, probe.naturalWidth * scale);
+      const h = Math.max(60, probe.naturalHeight * scale);
+      placeBubble({
+        type: 'image',
+        src: reader.result,
+        x: VIEW_W / 2 - w / 2,
+        y: VIEW_H / 2 - h / 2,
+        w, h,
+        focus: true,
+      });
+      showToast('Image pasted — drag anywhere');
+    };
+    probe.src = reader.result;
+  };
+  reader.readAsDataURL(imageBlob);
+});
+
+// Drag-to-pan (crop-adjust) the pasted image inside a panel. Only fires if
+// the user actually moves >3px, so a plain click still just selects the panel.
+function startImagePan(e, panelId) {
+  const startX = e.clientX, startY = e.clientY;
+  const imgD = state.panelImages[panelId];
+  if (!imgD) return;
+  const origOx = imgD.ox || 0;
+  const origOy = imgD.oy || 0;
+  let moved = false;
+  function onMove(ev) {
+    const stg = stagePixelSize();
+    const dxWorld = (ev.clientX - startX) * (VIEW_W / stg.w);
+    const dyWorld = (ev.clientY - startY) * (VIEW_H / stg.h);
+    if (!moved && Math.hypot(dxWorld, dyWorld) > 3) moved = true;
+    if (!moved) return;
+    imgD.ox = origOx + dxWorld;
+    imgD.oy = origOy + dyWorld;
+    renderPanels();
+  }
+  function onUp() {
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onUp);
+    if (moved) saveState();
+  }
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+}
+
+// Wheel over a selected panel with an image → scale the image. Border stays
+// a constant stroke-width because it's on a separate polygon layer above.
+document.getElementById('stage').addEventListener('wheel', (e) => {
+  if (!state.selectedPanelId) return;
+  const imgData = state.panelImages[state.selectedPanelId];
+  if (!imgData) return;
+  e.preventDefault();
+  // Trackpad pinch on macOS fires wheel with ctrlKey=true. Handle both.
+  const factor = Math.exp(-e.deltaY * 0.006);
+  imgData.scale = Math.max(0.3, Math.min(15, (imgData.scale || 1) * factor));
+  renderPanels();
+  saveState();
+}, { passive: false });
+
+// =====================================================================
+//  DOUBLE-CLICK CREATOR (ported from index.html openCreator + materializeRing)
+// =====================================================================
+//
+// Double-click anywhere on the stage → text input appears at cursor.
+// Type + Enter → materialises a ring of bubble styles around it (all sharing
+// the typed text). Left/right arrows swap between TEXT and IMPACT banks.
+
+const STYLE_BANKS = [
+  /* TEXT   */ ['caption', 'silver',    'narrator',  'dialog', 'double',      'speech',  'thought', 'silvercloud'],
+  /* IMPACT */ ['pop',     'silver',    'chromatic', 'glitch', 'silvercloud', 'display', 'kirby',   'soundfx'   ],
+];
+let currentBank = 0;
+let nextStackId = 1;
+const stageEl = document.getElementById('stage');
+
+// Double-click → vertical stack of every style. As soon as the user drags
+// one bubble out of its stack slot, that bubble is "claimed" (stackId cleared)
+// and stays. The next dblclick sweeps away any UNCLAIMED bubbles from
+// previous stacks before spawning a new one.
+function openCreator(wx, wy) {
+  purgeUnclaimedStacks();
+
+  const el = document.createElement('div');
+  el.className = 'creator';
+  el.style.left = wx + 'px';
+  el.style.top  = wy + 'px';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'text';
+  input.placeholder = 'TYPE...';
+  el.appendChild(input);
+  bubbleLayer.appendChild(el);
+  const creator = { el, input, items: [], x: wx, y: wy, stackId: nextStackId++ };
+
+  input.addEventListener('input', () => {
+    if (!creator.items.length) return;
+    const text = input.value.trim() || 'HELLO';
+    creator.items.forEach(b => {
+      b.text = text;
+      if (b.textarea) b.textarea.value = text;
+    });
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const text = input.value.trim();
+      currentBank = text.length <= 12 ? 1 : 0;
+      materializeStack(creator);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      el.remove();
+    } else if (!creator.items.length && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      currentBank = (currentBank + (e.key === 'ArrowRight' ? 1 : -1) + STYLE_BANKS.length) % STYLE_BANKS.length;
+      showToast('Bank ' + (currentBank + 1) + '/' + STYLE_BANKS.length);
+    }
+  });
+  setTimeout(() => input.focus(), 0);
+  return creator;
+}
+
+// Vertical column of options (was a ring). Fits inside the stage-wrap height;
+// centre column re-anchored around click if it would overflow top or bottom.
+function materializeStack(creator) {
+  if (creator.items.length) return;
+  const text = creator.input.value.trim() || 'HELLO';
+  const styleKeys = STYLE_BANKS[currentBank];
+  const N = styleKeys.length;
+  // Compact preview size — small enough that 8 stack vertically without overflow.
+  const SCALE = 0.35;
+  const GAP   = 8;
+  const sizes = styleKeys.map(k => ({
+    w: STYLES[k].size.w * SCALE,
+    h: STYLES[k].size.h * SCALE,
+  }));
+  const totalH = sizes.reduce((s, x) => s + x.h, 0) + GAP * (N - 1);
+  // Anchor so the stack fits inside the viewBox regardless of where user clicked.
+  let topY = creator.y - totalH / 2;
+  topY = Math.max(4, Math.min(VIEW_H - totalH - 4, topY));
+  const xCol = creator.x + 60;   // stack sits to the right of the input caret
+  let y = topY;
+  styleKeys.forEach((key, i) => {
+    const s = sizes[i];
+    const x = xCol - s.w / 2;
+    placeBubble({ style: key, x, y, w: s.w, h: s.h, text, focus: false });
+    const b = state.bubbles[state.bubbles.length - 1];
+    b.stackId = creator.stackId;
+    creator.items.push(b);
+    y += s.h + GAP;
+  });
+  creator.input.style.opacity = '0.35';
+}
+
+// Remove every bubble still tagged with a stackId — they were shown as options
+// but never dragged out of the stack, so the user didn't want them.
+function purgeUnclaimedStacks() {
+  const orphans = state.bubbles.filter(b => b.stackId != null);
+  orphans.forEach(b => deleteBubble(b.id));
+}
+
+// Double-click ANYWHERE (except on an existing bubble / editor / sidebar)
+// opens the creator. Works over the gutter or even the dark background
+// outside the stage — the click still maps cleanly into viewBox coords.
+document.getElementById('app').addEventListener('dblclick', (e) => {
+  if (e.target.closest('.bubble')     ||    // user-placed HTML bubbles
+      e.target.closest('.svg-bubble') ||    // pre-placed SVG bubbles
+      e.target.closest('.creator')    ||
+      e.target.closest('.tpl-editor') ||
+      e.target.closest('#font-sidebar')) return;
+  const rect = stageEl.getBoundingClientRect();
+  const wx = (e.clientX - rect.left) * (VIEW_W / rect.width);
+  const wy = (e.clientY - rect.top)  * (VIEW_H / rect.height);
+  openCreator(wx, wy);
+});
+
+// =====================================================================
+//  PLACED BUBBLES — canvas shape + editable <textarea> for text
+// =====================================================================
+
+const bubbleLayer = document.getElementById('bubble-layer');
+
+// Two call shapes:
+//   placeBubble('speech', wx, wy)                  ← drag-drop from palette (centers on cursor)
+//   placeBubble({style, x, y, w, h, text, focus}) ← programmatic (top-left origin, exact size)
+//
+// For image bubbles pass { type: 'image', src, x, y, w, h }.
+function placeBubble(styleKeyOrOpts, wx, wy) {
+  let bubble;
+  if (typeof styleKeyOrOpts === 'string') {
+    const style = STYLES[styleKeyOrOpts];
+    const w = style.size.w * 0.7;
+    const h = style.size.h * 0.7;
+    bubble = {
+      id: state.nextBubbleId++,
+      type: 'style',
+      styleKey: styleKeyOrOpts,
+      x: wx - w/2, y: wy - h/2,
+      w, h,
+      text: '',
+      fillIndex: Math.max(0, COLORS.indexOf(style.fill)),
+      fontIndex: Math.max(0, FONTS.indexOf(style.font)),
+      _focus: true,
+    };
+  } else {
+    const o = styleKeyOrOpts;
+    if (o.type === 'image') {
+      bubble = {
+        id: state.nextBubbleId++,
+        type: 'image',
+        src: o.src,
+        x: o.x, y: o.y, w: o.w, h: o.h,
+        _focus: !!o.focus,
+      };
+    } else {
+      const style = STYLES[o.style];
+      bubble = {
+        id: state.nextBubbleId++,
+        type: 'style',
+        styleKey: o.style,
+        x: o.x, y: o.y, w: o.w, h: o.h,
+        text: o.text || '',
+        fillIndex: o.fillIndex != null ? o.fillIndex : Math.max(0, COLORS.indexOf(style.fill)),
+        fontIndex: o.fontIndex != null ? o.fontIndex : Math.max(0, FONTS.indexOf(style.font)),
+        fontScale: o.fontScale || 1,
+        noShape: !!o.noShape,
+        _focus: !!o.focus,
+      };
+    }
+  }
+  state.bubbles.push(bubble);
+  createBubbleEl(bubble);
+  if (bubble._focus) selectBubble(bubble.id);
+  saveState();
+}
+
+function createBubbleEl(bubble) {
+  const el = document.createElement('div');
+  el.className = 'bubble' + (bubble.noShape ? ' no-shape' : '') + (bubble.type === 'image' ? ' image' : '');
+  el.dataset.bid = bubble.id;
+  positionBubbleEl(el, bubble);
+
+  let canvas = null;
+  let ta = null;
+  let img = null;
+
+  if (bubble.type === 'image') {
+    img = document.createElement('img');
+    img.src = bubble.src;
+    img.draggable = false;
+    el.appendChild(img);
+  } else {
+    canvas = bubble.noShape ? null : document.createElement('canvas');
+    if (canvas) el.appendChild(canvas);
+
+    ta = document.createElement('textarea');
+    ta.className = 'btext';
+    ta.placeholder = 'Type…';
+    ta.rows = 1;
+    ta.value = bubble.text;
+    el.appendChild(ta);
+  }
+
+  // 8-handle resize
+  ['nw','ne','sw','se','n','s','e','w'].forEach(dir => {
+    const h = document.createElement('div');
+    h.className = 'bhandle ' + dir;
+    h.addEventListener('mousedown', (e) => startBubbleResize(e, bubble, dir, el));
+    el.appendChild(h);
+  });
+
+  el.addEventListener('mousedown', (e) => {
+    if (e.target.classList.contains('bhandle')) return;
+    // Stack bubbles: always drag (user is picking from the stack).
+    if (bubble.stackId != null) {
+      e.preventDefault();
+      e.stopPropagation();
+      selectBubble(bubble.id);
+      startBubbleDrag(e, bubble, el);
+      return;
+    }
+    // Claimed bubbles: click on textarea = edit, click on body = drag.
+    if (ta && e.target === ta) return;
+    e.stopPropagation();
+    selectBubble(bubble.id);
+    startBubbleDrag(e, bubble, el);
+  });
+
+  if (ta) {
+    ta.addEventListener('input', () => {
+      bubble.text = ta.value;
+      redrawBubble(bubble, canvas);
+      positionBubbleText(bubble, ta);
+      saveState();
+    });
+    ta.addEventListener('focus', () => selectBubble(bubble.id));
+  }
+
+  bubble.el = el;
+  bubble.canvas = canvas;
+  bubble.textarea = ta;
+  bubble.img = img;
+
+  bubbleLayer.appendChild(el);
+  if (canvas) redrawBubble(bubble, canvas);
+  if (ta) positionBubbleText(bubble, ta);
+  if (bubble._focus && ta) setTimeout(() => ta.focus(), 0);
+}
+
+// Bubble lives inside #stage-wrap (which CSS-transforms the whole stage).
+// So bubble positions are in the 800×600 pre-transform coord space —
+// no additional scaling needed here.
+function positionBubbleEl(el, bubble) {
+  el.style.left   = bubble.x + 'px';
+  el.style.top    = bubble.y + 'px';
+  el.style.width  = bubble.w + 'px';
+  el.style.height = bubble.h + 'px';
+}
+
+// mode:
+//   'grow'     (default) — text overflow grows bubble.h. Used while typing.
+//   'showText'           — text overflow grows textarea only (bubble stays).
+//                          Used for Ctrl/Cmd +/- so the user can pump the font
+//                          size up without the bubble jumping around.
+//   'clip'               — no growth at all. Text clips to bubble box.
+//                          Used during manual resize so the user can shrink freely.
+function positionBubbleText(bubble, ta, mode = 'grow') {
+  const style = STYLES[bubble.styleKey];
+  const marg = TEXT_MARGIN[bubble.styleKey] || { mx: 40, my: 30 };
+  let textW, textH;
+  if (bubble.noShape) {
+    textW = bubble.w; textH = bubble.h;
+  } else {
+    textW = Math.max(1, bubble.w - marg.mx * 2);
+    textH = Math.max(1, bubble.h - marg.my * 2);
+  }
+
+  const baseSize = bubble.noShape
+    ? Math.max(9, Math.min(textH * 0.55, 16))
+    : Math.max(12, Math.min(Math.min(bubble.w, bubble.h), Math.min(style.size.w, style.size.h)) * 0.14);
+  const fontSize = baseSize * (bubble.fontScale || 1);
+
+  ta.style.fontFamily = `"${style.font}", cursive`;
+  ta.style.fontSize = fontSize + 'px';
+  ta.style.textTransform = style.upper ? 'uppercase' : 'none';
+  ta.style.fontStyle = style.italic ? 'italic' : 'normal';
+  const fill = COLORS[bubble.fillIndex] || style.fill;
+  ta.style.color = isDark(fill) ? '#fff' : '#000';
+  ta.style.width = textW + 'px';
+
+  if (mode !== 'clip') {
+    // Measure required height at the current font size.
+    ta.style.height = 'auto';
+    const needed = ta.scrollHeight;
+    if (needed > textH + 1) {
+      if (mode === 'grow') {
+        bubble.h += (needed - textH);
+        textH = needed;
+        positionBubbleEl(bubble.el, bubble);
+        if (bubble.canvas) redrawBubble(bubble, bubble.canvas);
+      } else {
+        // showText: let the textarea extend past the bubble box; the bubble
+        // shape doesn't move, but the text stays visible so nothing disappears.
+        textH = needed;
+      }
+    }
+  }
+
+  ta.style.left   = ((bubble.w - textW) / 2) + 'px';
+  ta.style.top    = ((bubble.h - textH) / 2) + 'px';
+  ta.style.height = textH + 'px';
+}
+
+function redrawBubble(bubble, canvas) {
+  if (!canvas) return;
+  setupCanvas(canvas, bubble.w, bubble.h);
+  drawStyle(
+    canvas.getContext('2d'),
+    bubble.styleKey, bubble.w, bubble.h,
+    '',
+    COLORS[bubble.fillIndex],
+    FONTS[bubble.fontIndex]
+  );
+}
+
+function selectBubble(id) {
+  if (state.selectedBubbleId !== null) {
+    const prev = state.bubbles.find(b => b.id === state.selectedBubbleId);
+    if (prev && prev.el) prev.el.classList.remove('selected');
+  }
+  state.selectedBubbleId = id;
+  if (id !== null) {
+    const b = state.bubbles.find(bb => bb.id === id);
+    if (b && b.el) b.el.classList.add('selected');
+    // Deselect panel
+    if (state.selectedPanelId) {
+      state.selectedPanelId = null;
+      svg.querySelectorAll('polygon[data-panel-stroke]').forEach(n => {
+        n.setAttribute('stroke-width', '3');
+      });
+    }
+  }
+}
+
+function deleteBubble(id) {
+  const idx = state.bubbles.findIndex(b => b.id === id);
+  if (idx < 0) return;
+  const b = state.bubbles[idx];
+  if (b.el) b.el.remove();
+  state.bubbles.splice(idx, 1);
+  if (state.selectedBubbleId === id) state.selectedBubbleId = null;
+  saveState();
+}
+
+function startBubbleDrag(e, bubble, el) {
+  const startX = e.clientX, startY = e.clientY;
+  const origX = bubble.x, origY = bubble.y;
+  let moved = false;
+  function onMove(ev) {
+    const stg = stagePixelSize();
+    const dxWorld = (ev.clientX - startX) * (VIEW_W / stg.w);
+    const dyWorld = (ev.clientY - startY) * (VIEW_H / stg.h);
+    if (!moved && Math.hypot(dxWorld, dyWorld) > 3) moved = true;
+    bubble.x = origX + dxWorld;
+    bubble.y = origY + dyWorld;
+    positionBubbleEl(el, bubble);
+  }
+  function onUp() {
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onUp);
+    // Claim the bubble — dragging out of stack means "I want this one".
+    if (moved && bubble.stackId != null) bubble.stackId = null;
+    saveState();
+  }
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+}
+
+function startBubbleResize(e, bubble, dir, el) {
+  e.stopPropagation();
+  e.preventDefault();
+  selectBubble(bubble.id);
+  const startX = e.clientX, startY = e.clientY;
+  const origX = bubble.x, origY = bubble.y, origW = bubble.w, origH = bubble.h;
+  const MIN = 1;
+  function onMove(ev) {
+    const stg = stagePixelSize();
+    const dx = (ev.clientX - startX) * (VIEW_W / stg.w);
+    const dy = (ev.clientY - startY) * (VIEW_H / stg.h);
+    let x = origX, y = origY, w = origW, h = origH;
+    if (dir.includes('e')) w = Math.max(MIN, origW + dx);
+    if (dir.includes('s')) h = Math.max(MIN, origH + dy);
+    if (dir.includes('w')) { w = Math.max(MIN, origW - dx); x = origX + (origW - w); }
+    if (dir.includes('n')) { h = Math.max(MIN, origH - dy); y = origY + (origH - h); }
+    bubble.x = x; bubble.y = y; bubble.w = w; bubble.h = h;
+    positionBubbleEl(el, bubble);
+    if (bubble.canvas) redrawBubble(bubble, bubble.canvas);
+    // 'clip' during manual resize so the user can shrink freely even if
+    // the text would otherwise force it larger.
+    if (bubble.textarea) positionBubbleText(bubble, bubble.textarea, 'clip');
+  }
+  function onUp() {
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onUp);
+    saveState();
+  }
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+}
+
+// =====================================================================
+//  BACKGROUND CLICK / KEYBOARD
+// =====================================================================
+
+document.getElementById('center').addEventListener('mousedown', (e) => {
+  // Only deselect when click misses everything interactive
+  if (e.target.id === 'center' || e.target.id === 'stage-wrap' || e.target.id === 'stage') {
+    deselectAll();
+  }
+});
+
+// Cycle a template through the rectangle style types.
+function cycleTemplateStyle(id, dir) {
+  const cur = resolveTemplate(BUBBLE_TEMPLATES.find(t => t.id === id));
+  const idx = Math.max(0, RECT_TYPES.indexOf(cur.type));
+  const next = RECT_TYPES[(idx + dir + RECT_TYPES.length) % RECT_TYPES.length];
+  updateOverride(id, { type: next });
+  renderPanels();
+  showToast('style: ' + next);
+}
+// Cycle a template's font (per-bubble override).
+function cycleTemplateFont(id, dir) {
+  const cur = resolveTemplate(BUBBLE_TEMPLATES.find(t => t.id === id));
+  const curFont = cur.font || currentFont;
+  const idx = Math.max(0, FONTS.indexOf(curFont));
+  const next = FONTS[(idx + dir + FONTS.length) % FONTS.length];
+  updateOverride(id, { font: next });
+  renderPanels();
+  // Reflect in editor textarea
+  const ta = document.querySelector('.tpl-editor textarea');
+  if (ta) ta.style.fontFamily = `"${next}", system-ui, sans-serif`;
+  showToast('font: ' + next);
+}
+
+document.addEventListener('keydown', (e) => {
+  const t = document.activeElement;
+  const inField = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA');
+
+  // Ctrl/Cmd + = / + / - : while typing in a bubble, resize the font ONLY.
+  // The bubble shape / background stays exactly where it is. Text is allowed
+  // to extend past the bubble box so nothing disappears.
+  if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+    const isPlus  = e.key === '+' || e.key === '=';
+    const isMinus = e.key === '-' || e.key === '_';
+    if (isPlus || isMinus) {
+      if (t && t.tagName === 'TEXTAREA' && t.classList.contains('btext')) {
+        const bubbleEl = t.closest('.bubble');
+        const bid = bubbleEl && Number(bubbleEl.dataset.bid);
+        const bubble = bid != null && state.bubbles.find(b => b.id === bid);
+        if (bubble && bubble.type !== 'image') {
+          e.preventDefault();
+          const step = isPlus ? 1.15 : 1 / 1.15;
+          bubble.fontScale = Math.max(0.3, Math.min(6, (bubble.fontScale || 1) * step));
+          positionBubbleText(bubble, bubble.textarea, 'showText');
+          saveState();
+          return;
+        }
+      }
+    }
+  }
+
+  if (e.key === 'Escape') {
+    if (inField) t.blur();
+    document.querySelectorAll('.creator').forEach(c => c.remove());
+    closeTemplateEditor();
+    deselectAll();
+    return;
+  }
+  // Template shortcuts — active only when a template is selected AND focus
+  // is NOT in a text field (so arrow keys still navigate typed text).
+  if (state.selectedTemplateId) {
+    if (e.key === 'Tab' && e.shiftKey) {
+      e.preventDefault();
+      cycleTemplateStyle(state.selectedTemplateId, -1);
+      return;
+    }
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      cycleTemplateStyle(state.selectedTemplateId, +1);
+      return;
+    }
+    if (!inField && (e.key === 'ArrowLeft' || e.key === 'ArrowUp')) {
+      e.preventDefault();
+      cycleTemplateFont(state.selectedTemplateId, -1);
+      return;
+    }
+    if (!inField && (e.key === 'ArrowRight' || e.key === 'ArrowDown')) {
+      e.preventDefault();
+      cycleTemplateFont(state.selectedTemplateId, +1);
+      return;
+    }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && !inField) {
+      e.preventDefault();
+      updateOverride(state.selectedTemplateId, { deleted: true });
+      closeTemplateEditor();
+      return;
+    }
+  }
+  if ((e.key === 'Delete' || e.key === 'Backspace') && state.selectedBubbleId !== null && !inField) {
+    e.preventDefault();
+    deleteBubble(state.selectedBubbleId);
+  }
+});
+
+// =====================================================================
+//  STAGE FIT-TO-VIEWPORT — scale 800x600 to available centre column
+// =====================================================================
+
+const stageWrap = document.getElementById('stage-wrap');
+const centerCol = document.getElementById('center');
+
+function fitStage() {
+  const rect = centerCol.getBoundingClientRect();
+  const pad = 40;
+  const availW = rect.width - pad * 2;
+  const availH = rect.height - pad * 2;
+  const scale = Math.min(availW / VIEW_W, availH / VIEW_H, 1.5);
+  stageWrap.style.transform = `scale(${scale})`;
+  // After scale change, bubbles need repositioning because their
+  // pixel positions are based on the pre-transform stage size.
+  // Since the transform applies to the whole wrap, everything inside
+  // stays in the same coord space — no reposition needed. ✓
+}
+new ResizeObserver(fitStage).observe(centerCol);
+
+// =====================================================================
+//  TOAST
+// =====================================================================
+
+const toast = document.getElementById('toast');
+let toastTimer;
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 1600);
+}
+
+// =====================================================================
+//  INIT
+// =====================================================================
+
+function renderFontSidebar() {
+  const list = document.getElementById('fs-list');
+  list.innerHTML = '';
+  FONTS.forEach((f, i) => {
+    const item = document.createElement('div');
+    item.className = 'fs-item' + (f === currentFont ? ' active' : '');
+    item.dataset.font = f;
+    item.textContent = f;
+    item.style.fontFamily = `"${f}", cursive`;
+    item.addEventListener('click', () => setFont(f));
+    list.appendChild(item);
+  });
+}
+
+// ---------------- Style palette (right sidebar) ----------------
+
+const STYLE_LABELS = {
+  caption:        'Caption',
+  silver:         'Silver Age',
+  narrator:       'Narrator',
+  dialog:         'Dialog',
+  double:         'Double',
+  display:        'Slab Splash',
+  orangebox:      'Orange Box',
+  speech:         'Speech',
+  thought:        'Thought',
+  silvercloud:    'Silver Cloud',
+  halftonebubble: 'Halftone Bubble',
+  comicspeech:    'Comic Speech',
+  burst:          'Starburst',
+  pop:            'Pop!',
+  soundfx:        'Sound FX',
+  halftone:       'Halftone',
+  chromatic:      'Chromatic',
+  glitch:         'Glitch',
+  neon:           'Neon',
+  kirby:          'Kirby',
+  sticker:        'Sticker',
+};
+
+const STYLE_ORDER = [
+  'caption', 'silver', 'orangebox', 'narrator', 'dialog', 'double', 'display',
+  'speech', 'thought', 'silvercloud', 'halftonebubble', 'comicspeech',
+  'burst', 'pop', 'soundfx', 'halftone', 'chromatic', 'glitch', 'neon', 'kirby', 'sticker',
+];
+
+// Short preview words picked so each style's aspect ratio reads correctly at chip size.
+const STYLE_PREVIEW_TEXT = {
+  caption: 'HELLO', silver: 'HELLO', narrator: 'HELLO', dialog: 'HELLO',
+  double: 'HELLO', display: 'WOW!', orangebox: 'NOTE',
+  speech: 'HELLO', thought: 'HMM', silvercloud: 'HMM',
+  halftonebubble: 'HELLO', comicspeech: 'HELLO',
+  burst: 'POW!', pop: 'BAM!', soundfx: 'BOOM',
+  halftone: 'BAM!', chromatic: 'GLITCH', glitch: 'GLITCH',
+  neon: 'NEON', kirby: 'ZAP!', sticker: 'HELLO',
+};
+
+function renderStyleChips() {
+  const chips = document.getElementById('style-chips');
+  if (!chips) return;
+  chips.innerHTML = '';
+  STYLE_ORDER.forEach(key => {
+    if (!STYLES[key] || !DRAWERS[key]) return;
+    const chip = document.createElement('div');
+    chip.className = 'style-chip';
+    chip.title = STYLE_LABELS[key] || key;
+
+    const preview = document.createElement('canvas');
+    chip.appendChild(preview);
+
+    const name = document.createElement('div');
+    name.className = 'sc-name';
+    name.textContent = STYLE_LABELS[key] || key;
+    chip.appendChild(name);
+
+    chip.addEventListener('mousedown', (e) => e.stopPropagation());
+    chip.addEventListener('click', (e) => {
+      e.stopPropagation();
+      spawnStyleBubbleAtStageCenter(key);
+    });
+
+    chips.appendChild(chip);
+    requestAnimationFrame(() => renderStyleChipPreview(preview, key));
+  });
+}
+
+function renderStyleChipPreview(canvas, styleKey) {
+  const rect = canvas.getBoundingClientRect();
+  const cw = Math.max(60, Math.floor(rect.width));
+  const ch = Math.max(40, Math.floor(rect.height));
+  canvas.width = Math.round(cw * DPR);
+  canvas.height = Math.round(ch * DPR);
+  canvas.style.width = cw + 'px';
+  canvas.style.height = ch + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.scale(DPR, DPR);
+  const style = STYLES[styleKey];
+  drawStyle(
+    ctx, styleKey, cw, ch,
+    STYLE_PREVIEW_TEXT[styleKey] || 'AA',
+    style.fill, style.font
+  );
+}
+
+// Drop a style bubble at the center of the stage (viewBox coords).
+function spawnStyleBubbleAtStageCenter(styleKey) {
+  const style = STYLES[styleKey];
+  const w = style.size.w * 0.7;
+  const h = style.size.h * 0.7;
+  placeBubble({
+    style: styleKey,
+    x: VIEW_W / 2 - w / 2,
+    y: VIEW_H / 2 - h / 2,
+    w, h,
+    text: '',
+    focus: true,
+  });
+}
+
+function setFont(f) {
+  currentFont = f;
+  document.querySelectorAll('#font-sidebar .fs-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.font === f);
+  });
+  svg.querySelectorAll('text.bubble-text').forEach(t => {
+    t.setAttribute('font-family', `"${f}", "Comic Neue", cursive`);
+  });
+  state.bubbles.forEach(b => {
+    b.fontIndex = FONTS.indexOf(f);
+    if (b.textarea) b.textarea.style.fontFamily = `"${f}", cursive`;
+    if (b.canvas)   redrawBubble(b, b.canvas);
+  });
+  saveState();
+}
+
+// =====================================================================
+//  PERSISTENCE — localStorage auto-save/restore
+// =====================================================================
+//
+// Everything that can change lives here: mesh vertex positions, pasted
+// panel images (as base64 data URLs + scale), user-added bubbles from the
+// double-click ring, and the chosen font. Fires on every mutation.
+// Storage is per-origin (http://localhost:8790); reloading, closing/opening
+// the browser, or restarting the machine all preserve it. Clearing browser
+// data OR switching port will lose it. Cap ~5 MB.
+
+const STORAGE_KEY = 'designs-project-v1';
+let saveTimer;
+function saveState() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      const payload = {
+        v: state.vertices,
+        pi: state.panelImages,
+        bo: state.bubbleOverrides,
+        ub: state.bubbles.filter(b => b.stackId == null).map(b => ({
+          type: b.type || 'style',
+          styleKey: b.styleKey, x: b.x, y: b.y, w: b.w, h: b.h,
+          text: b.text, fillIndex: b.fillIndex, fontIndex: b.fontIndex,
+          fontScale: b.fontScale,
+          noShape: b.noShape,
+          src: b.src,
+        })),
+        f: currentFont,
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    } catch (e) {
+      console.warn('save failed', e);
+    }
+  }, 150);
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) { return null; }
+}
+
+// Save current project to a downloadable JSON file. User commits it to the
+// repo root as `project.json`; on next load, it's fetched automatically and
+// overrides localStorage — so state travels across machines / deployments.
+function serializeProject() {
+  return {
+    v: state.vertices,
+    pi: state.panelImages,
+    bo: state.bubbleOverrides,
+    ub: state.bubbles.filter(b => b.stackId == null).map(b => ({
+      styleKey: b.styleKey, x: b.x, y: b.y, w: b.w, h: b.h,
+      text: b.text, fillIndex: b.fillIndex, fontIndex: b.fontIndex,
+      noShape: b.noShape,
+    })),
+    f: currentFont,
+    savedAt: new Date().toISOString(),
+  };
+}
+
+function downloadProject() {
+  const payload = JSON.stringify(serializeProject(), null, 2);
+  const blob = new Blob([payload], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'project.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  showToast('Downloaded project.json — commit it to your repo');
+}
+
+function loadProjectFromFile(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const saved = JSON.parse(reader.result);
+      applyLoadedState(saved);
+      showToast('Loaded project.json');
+    } catch (e) { showToast('Bad JSON: ' + e.message); }
+  };
+  reader.readAsText(file);
+}
+
+function applyLoadedState(saved) {
+  if (!saved) return;
+  if (saved.v)  state.vertices = saved.v;
+  if (saved.pi) state.panelImages = saved.pi;
+  if (saved.bo) state.bubbleOverrides = saved.bo;
+  if (saved.f)  currentFont = saved.f;
+  // Wipe user-added bubbles then re-place from payload.
+  state.bubbles.forEach(b => b.el && b.el.remove());
+  state.bubbles = [];
+  renderPanels();
+  renderHandles();
+  if (saved.ub) {
+    saved.ub.forEach(b => {
+      if (b.type === 'image') {
+        placeBubble({ type: 'image', src: b.src, x: b.x, y: b.y, w: b.w, h: b.h, focus: false });
+      } else {
+        placeBubble({ ...b, style: b.styleKey, focus: false });
+      }
+    });
+  }
+  saveState();
+}
+
+// Try to fetch project.json shipped with the site (from git repo / deployment).
+// Falls back to localStorage if not found or fetch fails.
+async function tryFetchProjectJson() {
+  try {
+    const res = await fetch('project.json', { cache: 'no-store' });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) { return null; }
+}
+
+// Wipe all text (template overrides + user-added bubbles), keep pasted images
+// and the mesh geometry so the layout + illustrations survive.
+function resetTextOnly() {
+  if (!confirm('Wipe all text? Pasted images and layout will be kept.')) return;
+  state.bubbleOverrides = {};
+  // Keep image bubbles; only remove style/text bubbles.
+  const keepers = state.bubbles.filter(b => b.type === 'image');
+  state.bubbles.filter(b => b.type !== 'image').forEach(b => b.el && b.el.remove());
+  state.bubbles = keepers;
+  state.selectedBubbleId = null;
+  state.selectedTemplateId = null;
+  closeTemplateEditor();
+  renderPanels();
+  saveState();
+  showToast('Text reset — images kept');
+}
+
+// =====================================================================
+//  EDITABLE SVG BUBBLE — overlay popup with textarea + style + resize
+// =====================================================================
+
+const RECT_TYPES  = ['yellowbox', 'orangebox', 'redbox', 'pinkbox', 'yellowhighlight', 'blueflag', 'quotebubble', 'comicspeech'];
+const RECT_LABELS = {
+  yellowbox: 'NARR',   orangebox: 'ORG',  redbox: 'RED',
+  yellowhighlight: 'HL', blueflag: 'BLUE', quotebubble: 'QUOTE',
+  comicspeech: 'BUB',
+};
+
+function positionEditor(el, cur) {
+  el.style.left   = (cur.cx - cur.rx) + 'px';
+  el.style.top    = (cur.cy - cur.ry) + 'px';
+  el.style.width  = (cur.rx * 2) + 'px';
+  el.style.height = (cur.ry * 2) + 'px';
+}
+
+function updateOverride(id, patch) {
+  state.bubbleOverrides[id] = { ...(state.bubbleOverrides[id] || {}), ...patch };
+  saveState();
+}
+
+function closeTemplateEditor() {
+  document.querySelectorAll('.tpl-editor').forEach(e => e.remove());
+  if (state.selectedTemplateId) {
+    state.selectedTemplateId = null;
+    renderPanels();
+  }
+}
+
+function openTemplateEditor(id) {
+  closeTemplateEditor();
+  const tpl = BUBBLE_TEMPLATES.find(t => t.id === id);
+  if (!tpl) return;
+  state.selectedTemplateId = id;
+  renderPanels();      // suppresses baked SVG text so overlay is WYSIWYG
+
+  const cur = resolveTemplate(tpl);
+  const spec = TYPE_STYLE[cur.type] || { fill: '#fff', ink: '#000' };
+  const el = document.createElement('div');
+  el.className = 'tpl-editor';
+  el.tabIndex = 0;   // focusable so global keydown shortcuts have context
+  positionEditor(el, cur);
+
+  // No popup controls — style/font cycling handled by keyboard shortcuts:
+  //   Shift+Tab  → next style (colour cycle)
+  //   Arrow keys → next/prev font
+  //   Delete     → remove
+  //   drag on the editor's dashed border → move (see startTemplateDrag)
+
+  // Textarea styled to match the SVG bubble underneath (WYSIWYG)
+  const ta = document.createElement('textarea');
+  ta.value = cur.text || '';
+  const stg = stagePixelSize();
+  const scale = stg.w / VIEW_W;      // stage-wrap CSS scale factor
+  // Recompute the same font size the SVG drawer would pick
+  const rx = cur.rx, ry = cur.ry;
+  const isRect = !!TYPE_STYLE[cur.type];
+  const padX = isRect ? rx * 0.08 : rx * 0.2;
+  const padY = isRect ? ry * 0.14 : ry * 0.2;
+  const areaW = (rx - padX) * 2;
+  const areaH = (ry - padY) * 2;
+  const raw = (cur.text || '').split('\n');
+  const stripped = raw.map(s => s.replace(/\*/g, ''));
+  const perLine = areaH / Math.max(1, raw.length);
+  const longest = Math.max(3, ...stripped.map(l => l.length));
+  let fontPx = Math.min(perLine * 0.82, areaW / (longest * 0.52));
+  fontPx = Math.max(7, Math.min(fontPx, 36));
+
+  ta.style.padding      = `${padY}px ${padX}px`;
+  ta.style.fontSize     = fontPx + 'px';
+  ta.style.fontFamily   = `"${cur.font || currentFont}", "Comic Neue", cursive`;
+  ta.style.color        = spec.ink;
+  ta.style.textAlign    = (cur.align || 'center') === 'left' ? 'left' : 'center';
+  ta.style.fontStyle    = spec.alwaysItalic ? 'italic' : 'normal';
+  ta.style.lineHeight   = '1.15';
+
+  ta.addEventListener('input', () => {
+    updateOverride(id, { text: ta.value });
+    renderPanels();
+  });
+  ta.addEventListener('mousedown', e => e.stopPropagation());
+  el.appendChild(ta);
+
+  // Resize handles
+  ['nw','ne','sw','se'].forEach(dir => {
+    const h = document.createElement('div');
+    h.className = 'tpl-handle ' + dir;
+    h.addEventListener('mousedown', (e) => startTemplateResize(e, id, dir, el, tpl));
+    el.appendChild(h);
+  });
+
+  // Mousedown on the editor's frame (not on textarea or a handle) = drag.
+  el.addEventListener('mousedown', (e) => {
+    if (e.target === ta) return;
+    if (e.target.classList.contains('tpl-handle')) return;
+    e.stopPropagation(); e.preventDefault();
+    startTemplateDrag(e, id, el, tpl);
+  });
+
+  bubbleLayer.appendChild(el);
+  // Focus the editor DIV (not the textarea) so keyboard shortcuts fire.
+  // Clicking into the textarea puts focus there for typing.
+  setTimeout(() => el.focus(), 0);
+}
+
+function startTemplateDrag(e, id, el, tpl) {
+  const cur = resolveTemplate(tpl);
+  const startX = e.clientX, startY = e.clientY;
+  const origCx = cur.cx, origCy = cur.cy;
+  function onMove(ev) {
+    const stg = stagePixelSize();
+    const dx = (ev.clientX - startX) * (VIEW_W / stg.w);
+    const dy = (ev.clientY - startY) * (VIEW_H / stg.h);
+    const cx = origCx + dx, cy = origCy + dy;
+    updateOverride(id, { cx, cy });
+    renderPanels();
+    positionEditor(el, { cx, cy, rx: cur.rx, ry: cur.ry });
+  }
+  function onUp() {
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onUp);
+  }
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+}
+
+function startTemplateResize(e, id, dir, el, tpl) {
+  e.stopPropagation();
+  e.preventDefault();
+  const cur = resolveTemplate(tpl);
+  const startX = e.clientX, startY = e.clientY;
+  const origCx = cur.cx, origCy = cur.cy;
+  const origRx = cur.rx, origRy = cur.ry;
+  function onMove(ev) {
+    const stg = stagePixelSize();
+    const dx = (ev.clientX - startX) * (VIEW_W / stg.w);
+    const dy = (ev.clientY - startY) * (VIEW_H / stg.h);
+    let rx = origRx, ry = origRy, cx = origCx, cy = origCy;
+    if (dir.includes('e')) { rx = Math.max(20, origRx + dx / 2); cx = origCx + dx / 2; }
+    if (dir.includes('w')) { rx = Math.max(20, origRx - dx / 2); cx = origCx + dx / 2; }
+    if (dir.includes('s')) { ry = Math.max(10, origRy + dy / 2); cy = origCy + dy / 2; }
+    if (dir.includes('n')) { ry = Math.max(10, origRy - dy / 2); cy = origCy + dy / 2; }
+    updateOverride(id, { rx, ry, cx, cy });
+    renderPanels();
+    positionEditor(el, { cx, cy, rx, ry });
+  }
+  function onUp() {
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onUp);
+  }
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+}
+
+// Close editor when clicking anywhere outside the editor + its target bubble.
+document.addEventListener('mousedown', (e) => {
+  if (e.target.closest('.tpl-editor')) return;
+  if (e.target.closest('.svg-bubble')) return;
+  if (state.selectedTemplateId) closeTemplateEditor();
+});
+
+// =====================================================================
+//  PDF EXPORT — tile the 45"-tall board into A4 or A3 pages
+// =====================================================================
+
+const PAGE_SIZES = {
+  a4: { w: 8.27,  h: 11.69, name: 'A4' },
+  a3: { w: 11.69, h: 16.54, name: 'A3' },
+};
+
+async function exportPDF(format) {
+  const spec = PAGE_SIZES[format];
+  if (!spec) return;
+  if (!(window.jspdf && window.jspdf.jsPDF)) {
+    showToast('PDF library not loaded'); return;
+  }
+  const { jsPDF } = window.jspdf;
+
+  // Target: assembled comic must be EXACTLY 45" tall. Width follows the
+  // stage aspect. Pages are cut to A4/A3 grid; edge pages are shorter/narrower
+  // (each PDF page is the exact size of its comic slice — no whitespace
+  // padding — so users can butt them together and land at 45" on the nose).
+  const BOARD_H_IN  = 45;
+  const boardAspect = VIEW_W / VIEW_H;
+  const BOARD_W_IN  = BOARD_H_IN * boardAspect;
+  const cols = Math.ceil(BOARD_W_IN / spec.w);
+  const rows = Math.ceil(BOARD_H_IN / spec.h);
+  const DPI  = 200;   // print-quality raster
+  const fullW = Math.round(BOARD_W_IN * DPI);
+  const fullH = Math.round(BOARD_H_IN * DPI);
+
+  showToast(`Rendering ${cols}×${rows}=${cols*rows} ${spec.name}-sized tiles at ${BOARD_W_IN.toFixed(2)}″ × ${BOARD_H_IN}″…`);
+
+  // Hide selection so it doesn't print.
+  const prevSel = state.selectedPanelId;
+  const prevTpl = state.selectedTemplateId;
+  if (prevSel) deselectAll();
+  if (prevTpl) closeTemplateEditor();
+  await new Promise(r => setTimeout(r, 30));
+
+  const svgStr  = new XMLSerializer().serializeToString(svg);
+  const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+  const svgUrl  = URL.createObjectURL(svgBlob);
+  const img = await new Promise((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => resolve(im);
+    im.onerror = reject;
+    im.src = svgUrl;
+  });
+  const boardCanvas = document.createElement('canvas');
+  boardCanvas.width = fullW; boardCanvas.height = fullH;
+  const bctx = boardCanvas.getContext('2d');
+  bctx.fillStyle = '#fff';
+  bctx.fillRect(0, 0, fullW, fullH);
+  bctx.drawImage(img, 0, 0, fullW, fullH);
+  URL.revokeObjectURL(svgUrl);
+
+  const tileWpx = Math.round(spec.w * DPI);
+  const tileHpx = Math.round(spec.h * DPI);
+  let pdf = null;
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const srcX = c * tileWpx, srcY = r * tileHpx;
+      const cropWpx = Math.min(tileWpx, fullW - srcX);
+      const cropHpx = Math.min(tileHpx, fullH - srcY);
+      const pageWin = cropWpx / DPI;
+      const pageHin = cropHpx / DPI;
+
+      const tileCanvas = document.createElement('canvas');
+      tileCanvas.width = cropWpx; tileCanvas.height = cropHpx;
+      const tctx = tileCanvas.getContext('2d');
+      tctx.fillStyle = '#fff';
+      tctx.fillRect(0, 0, cropWpx, cropHpx);
+      tctx.drawImage(boardCanvas, srcX, srcY, cropWpx, cropHpx, 0, 0, cropWpx, cropHpx);
+      const dataURL = tileCanvas.toDataURL('image/png');
+
+      const orient = pageWin > pageHin ? 'landscape' : 'portrait';
+      if (!pdf) {
+        pdf = new jsPDF({ unit: 'in', format: [pageWin, pageHin], orientation: orient });
+      } else {
+        pdf.addPage([pageWin, pageHin], orient);
+      }
+      pdf.addImage(dataURL, 'PNG', 0, 0, pageWin, pageHin);
+    }
+  }
+  pdf.save(`roommate-billboard-${spec.name.toLowerCase()}.pdf`);
+  if (prevSel) selectPanel(prevSel);
+  showToast(`${spec.name} PDF saved — ${cols*rows} tiles → ${BOARD_W_IN.toFixed(2)}″ × ${BOARD_H_IN}″`);
+}
+
+// =====================================================================
+//  INIT
+// =====================================================================
+
+document.fonts.ready.then(async () => {
+  // Priority: project.json in repo → localStorage → defaults.
+  const shipped = await tryFetchProjectJson();
+  const saved = shipped || loadState();
+  if (saved) {
+    if (saved.v)  state.vertices = saved.v;
+    if (saved.pi) state.panelImages = saved.pi;
+    if (saved.bo) state.bubbleOverrides = saved.bo;
+    if (saved.f)  currentFont = saved.f;
+  }
+  renderPanels();
+  renderHandles();
+  if (saved && saved.ub) {
+    saved.ub.forEach(b => {
+      if (b.type === 'image') {
+        placeBubble({ type: 'image', src: b.src, x: b.x, y: b.y, w: b.w, h: b.h, focus: false });
+      } else {
+        placeBubble({ ...b, style: b.styleKey, focus: false });
+      }
+    });
+  }
+  fitStage();
+  renderStyleChips();
+  document.getElementById('export-a4').addEventListener('click', () => exportPDF('a4'));
+  document.getElementById('export-a3').addEventListener('click', () => exportPDF('a3'));
+  document.getElementById('reset-text').addEventListener('click', resetTextOnly);
+  document.getElementById('save-project').addEventListener('click', downloadProject);
+  const fileInput = document.getElementById('load-file');
+  document.getElementById('load-project').addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files && e.target.files[0]) loadProjectFromFile(e.target.files[0]);
+  });
+  if (shipped) showToast('Loaded project.json from repo');
+});
+</script>
+</body>
+</html>

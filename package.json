@@ -1,0 +1,9 @@
+{
+  "name": "opencraw-designs",
+  "version": "1.0.0",
+  "description": "Roommate Etiquette billboard editor — static site (SVG panels + editable text bubbles + PDF export)",
+  "private": true,
+  "scripts": {
+    "dev": "python3 -m http.server 8790"
+  }
+}

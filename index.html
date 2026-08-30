@@ -1,0 +1,1966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Comic Studio</title>
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Bungee&family=Comic+Neue:ital,wght@0,700;1,700&family=Permanent+Marker&family=Luckiest+Guy&family=Creepster&family=Rock+Salt&family=Modak&family=Titan+One&family=Sigmar&display=swap" rel="stylesheet">
+<style>
+  html, body {
+    margin: 0; padding: 0; height: 100%; width: 100%;
+    background: #e8e4d8; overflow: hidden;
+    font-family: system-ui, -apple-system, sans-serif;
+    user-select: none; -webkit-user-select: none;
+    /* Disable browser default trackpad gestures (pinch-zoom, swipe) so we can handle them */
+    touch-action: none;
+    overscroll-behavior: none;
+  }
+
+  #world {
+    position: absolute; top: 0; left: 0;
+    width: 1px; height: 1px;
+    transform-origin: 0 0;
+    will-change: transform;
+  }
+
+  #panzone {
+    position: absolute; inset: 0;
+    cursor: grab;
+  }
+  #panzone.panning { cursor: grabbing; }
+
+  /* Placed item */
+  .item {
+    position: absolute;
+    cursor: move;
+  }
+  .item.selected {
+    outline: 2px dashed #4a90e2;
+    outline-offset: 6px;
+    border-radius: 4px;
+  }
+  .item canvas { display: block; pointer-events: none; }
+  .item img    { display: block; pointer-events: none; width: 100%; height: 100%; -webkit-user-drag: none; }
+
+  .handle {
+    position: absolute; width: 12px; height: 12px;
+    background: #4a90e2; border: 2px solid #fff; border-radius: 50%;
+    z-index: 30; display: none;
+  }
+  .item.selected .handle { display: block; }
+  .handle.nw { top: -13px; left: -13px; cursor: nwse-resize; }
+  .handle.ne { top: -13px; right: -13px; cursor: nesw-resize; }
+  .handle.sw { bottom: -13px; left: -13px; cursor: nesw-resize; }
+  .handle.se { bottom: -13px; right: -13px; cursor: nwse-resize; }
+  .handle.n  { top: -13px; left: 50%; transform: translateX(-50%); cursor: ns-resize; }
+  .handle.s  { bottom: -13px; left: 50%; transform: translateX(-50%); cursor: ns-resize; }
+  .handle.w  { top: 50%; left: -13px; transform: translateY(-50%); cursor: ew-resize; }
+  .handle.e  { top: 50%; right: -13px; transform: translateY(-50%); cursor: ew-resize; }
+
+  /* Creator */
+  .creator { position: absolute; width: 0; height: 0; z-index: 50; }
+  .creator input.text {
+    position: absolute; transform: translate(-50%, -50%);
+    font-family: 'Bangers', cursive;
+    font-size: 26px; letter-spacing: 1.5px; text-transform: uppercase;
+    text-align: center; color: #000;
+    background: rgba(255,255,255,0.9);
+    border: 2px dashed rgba(0,0,0,0.4);
+    border-radius: 6px;
+    padding: 10px 20px;
+    outline: none; min-width: 220px;
+  }
+  .creator input.text::placeholder { color: rgba(0,0,0,0.28); }
+
+  #toast {
+    position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%);
+    background: #111; color: #fff;
+    padding: 8px 18px; border-radius: 20px;
+    font-size: 13px; letter-spacing: 0.5px;
+    opacity: 0; transition: opacity 0.15s;
+    pointer-events: none; z-index: 200;
+  }
+  #toast.show { opacity: 1; }
+
+  /* Right-side style palette */
+  #sidebar {
+    position: fixed; top: 0; right: 0;
+    width: 220px; height: 100vh;
+    background: rgba(252, 250, 244, 0.96);
+    border-left: 1px solid rgba(0,0,0,0.12);
+    box-shadow: -4px 0 16px rgba(0,0,0,0.06);
+    padding: 14px 12px;
+    box-sizing: border-box;
+    overflow-y: auto;
+    z-index: 100;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+  .sb-title {
+    font-size: 11px; letter-spacing: 2.5px; font-weight: 600;
+    text-transform: uppercase;
+    color: #666;
+    margin-bottom: 6px; margin-left: 4px;
+  }
+  .sb-hint {
+    font-size: 10px; color: #999;
+    margin: 0 4px 12px; line-height: 1.4;
+  }
+  #chips {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .chip {
+    background: #fff;
+    border: 1px solid rgba(0,0,0,0.08);
+    border-radius: 8px;
+    padding: 5px;
+    cursor: pointer;
+    transition: transform 0.08s ease, box-shadow 0.12s ease, border-color 0.12s;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .chip:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.12);
+    border-color: rgba(74,144,226,0.5);
+  }
+  .chip:active { transform: translateY(0); box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+  .chip canvas {
+    display: block;
+    width: 100%;
+    height: 62px;
+    border-radius: 4px;
+    background: #f4f0e6;
+  }
+  .chip .name {
+    font-size: 9px;
+    font-weight: 600;
+    color: #444;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-top: 4px;
+    text-align: center;
+    line-height: 1.1;
+  }
+</style>
+</head>
+<body>
+
+<div id="panzone"></div>
+<div id="world"></div>
+<div id="toast">Copied!</div>
+
+<div id="sidebar">
+  <div class="sb-title">Styles</div>
+  <div class="sb-hint">Click to add · Paste (⌘V) any image</div>
+  <div id="chips"></div>
+</div>
+
+<script>
+  // =====================================================================
+  //  CONFIG
+  // =====================================================================
+
+  const DPR = window.devicePixelRatio || 1;
+  const EXPORT_SCALE = 4;
+
+  const COLORS = [
+    '#fdf23f', '#ffffff', '#ff3b30', '#4a90e2', '#37c26a',
+    '#ff8fb8', '#ff8c1a', '#a259ff', '#000000', '#d9c9a3'
+  ];
+
+  const FONTS = [
+    'Bangers', 'Bungee', 'Permanent Marker', 'Luckiest Guy',
+    'Comic Neue', 'Creepster', 'Rock Salt',
+    'Modak', 'Titan One', 'Sigmar'
+  ];
+
+  const STYLES = {
+    // ── Classic bank ─────────────────────────────
+    caption:   { fill: '#fdf23f', font: 'Bangers',    size: { w: 300, h: 110 }, upper: true  },
+    narrator:  { fill: '#f9f4e6', font: 'Comic Neue', size: { w: 300, h: 130 }, upper: true  },
+    // Silver Age Marvel narration box (X-Men reference):
+    // pure yellow fill, THIN black border, NO drop shadow.
+    silver:    { fill: '#fed835', font: 'Comic Neue', size: { w: 340, h: 130 }, upper: true  },
+    display:   { fill: '#fdf23f', font: 'Bungee',     size: { w: 340, h: 140 }, upper: true, italic: true },
+    double:    { fill: '#fdf6e3', font: 'Comic Neue', size: { w: 300, h: 140 }, upper: true  },
+    dialog:    { fill: '#ffffff', font: 'Comic Neue', size: { w: 280, h: 140 }, upper: false },
+    speech:    { fill: '#ffffff', font: 'Bangers',    size: { w: 340, h: 170 }, upper: true  },
+    thought:   { fill: '#ffffff', font: 'Comic Neue', size: { w: 320, h: 190 }, upper: false },
+    // Silver Age Marvel thought cloud: many small scallops, 3-bubble cascade tail.
+    silvercloud: { fill: '#ffffff', font: 'Comic Neue', size: { w: 340, h: 240 }, upper: true },
+    // Rounded speech bubble sitting on a radial halftone-dot backdrop
+    // (matches text_styles/screenshot.png)
+    halftonebubble: { fill: '#ffffff', font: 'Comic Neue', size: { w: 360, h: 240 }, upper: true },
+    burst:     { fill: '#ff3b30', font: 'Bungee',     size: { w: 240, h: 240 }, upper: true  },
+    // ── Modern / Spider-Verse bank ───────────────
+    pop:      { fill: '#4a90e2', font: 'Bungee',     size: { w: 360, h: 260 }, upper: true  },
+    soundfx:  { fill: '#ffcc00', font: 'Bungee',     size: { w: 320, h: 160 }, upper: true  },
+    halftone: { fill: '#ffcc00', font: 'Bungee',     size: { w: 320, h: 160 }, upper: true  },
+    chromatic:{ fill: '#ffffff', font: 'Bungee',     size: { w: 340, h: 160 }, upper: true  },
+    glitch:   { fill: '#ffffff', font: 'Bungee',     size: { w: 340, h: 160 }, upper: true  },
+    neon:     { fill: '#ff2d95', font: 'Bungee',     size: { w: 340, h: 180 }, upper: true  },
+    kirby:    { fill: '#ffcc00', font: 'Bungee',     size: { w: 260, h: 260 }, upper: true  },
+    sticker:  { fill: '#ff8fb8', font: 'Bangers',    size: { w: 260, h: 150 }, upper: true  },
+  };
+
+  // Two banks of 8 — split by text-fitness, not era.
+  //   TEXT   : rectangular captions + roomy bubbles that hold paragraphs.
+  //            Includes the two Silver-Age Marvel looks (silver, silvercloud)
+  //            straight from the X-Men reference panel.
+  //   IMPACT : starbursts + effect-text meant for 1–2 words.
+  // Left/right arrows (nothing selected) cycles between them.
+  // On Enter, the length of the text auto-picks whichever bank fits.
+  // Both banks include `silver` and `silvercloud` — the Silver-Age Marvel
+  // caption box and thought cloud from the X-Men reference are the two most
+  // recognisable comic-lettering shapes and should always be one arrow-swap
+  // away no matter how short the text is.
+  const STYLE_BANKS = [
+    /* 0 TEXT   */ ['caption', 'silver',   'narrator',  'dialog', 'double',      'speech',  'thought', 'silvercloud'],
+    /* 1 IMPACT */ ['pop',     'silver',   'chromatic', 'glitch', 'silvercloud', 'display', 'kirby',   'soundfx'    ],
+  ];
+
+  // Choose which bank suits a piece of text. Anything longer than a couple of
+  // words wants proper caption geometry; single-word exclamations want impact.
+  function pickBankForText(text) {
+    const t = (text || '').trim();
+    if (t.length <= 12) return 1; // IMPACT
+    return 0; // TEXT
+  }
+
+  const MIN_RING_RADIUS = 320;
+
+  // =====================================================================
+  //  STATE
+  // =====================================================================
+
+  const state = {
+    panX: 0, panY: 0, zoom: 1,
+    items: [],
+    creators: [],
+    selected: null,
+    currentBank: 0,
+    nextId: 1,
+  };
+  const MIN_ZOOM = 0.15;
+  const MAX_ZOOM = 5;
+
+  const world   = document.getElementById('world');
+  const panzone = document.getElementById('panzone');
+  const toast   = document.getElementById('toast');
+  let toastTimer;
+
+  // Rough interior text-area margins per style (px), used only for smart-sizing.
+  const TEXT_MARGIN = {
+    caption:     { mx: 34,  my: 30  },
+    narrator:    { mx: 40,  my: 40  },
+    silver:      { mx: 30,  my: 30  },
+    display:     { mx: 40,  my: 40  },
+    dialog:      { mx: 60,  my: 44  },
+    double:      { mx: 46,  my: 44  },
+    speech:      { mx: 70,  my: 70  },
+    thought:     { mx: 72,  my: 92  },
+    silvercloud: { mx: 62,  my: 90  },
+    halftonebubble: { mx: 70,  my: 100 },
+    burst:       { mx: 110, my: 110 },
+    sticker:     { mx: 54,  my: 46  },
+    soundfx:  { mx: 24,  my: 24  },
+    pop:      { mx: 150, my: 130 },
+    halftone: { mx: 30,  my: 30  },
+    chromatic:{ mx: 30,  my: 30  },
+    glitch:   { mx: 30,  my: 30  },
+    neon:     { mx: 40,  my: 40  },
+    kirby:    { mx: 100, my: 100 },
+    stamp:    { mx: 90,  my: 90  },
+  };
+
+  function applyTransform() {
+    world.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
+  }
+  applyTransform();
+
+  function clientToWorld(cx, cy) {
+    return {
+      x: (cx - state.panX) / state.zoom,
+      y: (cy - state.panY) / state.zoom,
+    };
+  }
+
+  // =====================================================================
+  //  PAN
+  // =====================================================================
+
+  let panStart = null;
+
+  panzone.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    panStart = {
+      x: e.clientX, y: e.clientY,
+      origPanX: state.panX, origPanY: state.panY,
+      moved: false,
+    };
+    panzone.classList.add('panning');
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!panStart) return;
+    const dx = e.clientX - panStart.x;
+    const dy = e.clientY - panStart.y;
+    if (!panStart.moved && Math.hypot(dx, dy) < 3) return;
+    panStart.moved = true;
+    state.panX = panStart.origPanX + dx;
+    state.panY = panStart.origPanY + dy;
+    applyTransform();
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (!panStart) return;
+    const wasClick = !panStart.moved;
+    panStart = null;
+    panzone.classList.remove('panning');
+    if (wasClick) {
+      // Empty background click → deselect only (creators persist)
+      if (state.selected) selectItem(null);
+    }
+  });
+
+  panzone.addEventListener('dblclick', (e) => {
+    const w = clientToWorld(e.clientX, e.clientY);
+    openCreator(w.x, w.y);
+  });
+
+  // Trackpad: 2-finger scroll = pan, pinch = zoom.
+  // macOS synthesizes pinch as wheel events with ctrlKey=true.
+  window.addEventListener('wheel', (e) => {
+    // Let the sidebar (or anything else with its own scroll) handle its own wheel.
+    if (e.target && e.target.closest && e.target.closest('#sidebar')) return;
+    e.preventDefault();
+    if (e.ctrlKey) {
+      // Pinch-zoom, anchored to the cursor
+      const factor = Math.exp(-e.deltaY * 0.012);
+      const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, state.zoom * factor));
+      const actual = newZoom / state.zoom;
+      state.panX = e.clientX - (e.clientX - state.panX) * actual;
+      state.panY = e.clientY - (e.clientY - state.panY) * actual;
+      state.zoom = newZoom;
+    } else {
+      // Two-finger pan
+      state.panX -= e.deltaX;
+      state.panY -= e.deltaY;
+    }
+    applyTransform();
+  }, { passive: false });
+
+  // =====================================================================
+  //  KEYBOARD
+  // =====================================================================
+
+  document.addEventListener('keydown', (e) => {
+    // If focus is in an input, its own listener owns Enter/Escape.
+    // Only allow arrow/tab/delete to act on selected items when no input focused.
+    const activeInput = document.activeElement && document.activeElement.tagName === 'INPUT';
+    if (activeInput) return;
+
+    if (state.selected) {
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        deleteItem(state.selected);
+        return;
+      }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        cycleColor(state.selected, e.shiftKey ? -1 : 1);
+        return;
+      }
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        cycleFont(state.selected, -1);
+        return;
+      }
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        cycleFont(state.selected, 1);
+        return;
+      }
+    } else {
+      // No item selected: horizontal arrows swap the entire bank.
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        cycleBank(-1);
+        return;
+      }
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        cycleBank(1);
+        return;
+      }
+    }
+
+    if (e.key === 'Escape' && state.selected) {
+      selectItem(null);
+    }
+  });
+
+  // =====================================================================
+  //  CREATOR — multiple can coexist; new double-clicks add, never remove.
+  // =====================================================================
+
+  function openCreator(x, y) {
+    const el = document.createElement('div');
+    el.className = 'creator';
+    el.style.left = x + 'px';
+    el.style.top  = y + 'px';
+
+    const input = document.createElement('input');
+    input.className = 'text';
+    input.placeholder = 'TYPE...';
+    el.appendChild(input);
+
+    world.appendChild(el);
+
+    const creator = { id: state.nextId++, el, input, items: [], x, y };
+    state.creators.push(creator);
+
+    input.addEventListener('input', () => {
+      if (!creator.items.length) return;
+      const text = creator.input.value.trim() || 'HELLO';
+      creator.items.forEach(item => {
+        item.text = text;
+        redrawItem(item);
+      });
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        state.currentBank = pickBankForText(creator.input.value);
+        materializeRing(creator);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        dismissCreator(creator);
+      }
+    });
+
+    setTimeout(() => input.focus(), 0);
+    return creator;
+  }
+
+  function dismissCreator(creator) {
+    creator.el.remove();
+    state.creators = state.creators.filter(c => c !== creator);
+    // Orphan items — they persist but no longer live-update on text edits.
+    creator.items.forEach(item => { item.creator = null; });
+    creator.items = [];
+  }
+
+  function materializeRing(creator) {
+    if (creator.items.length > 0) return; // already materialized
+    const text = creator.input.value.trim() || 'HELLO';
+    const styleKeys = STYLE_BANKS[state.currentBank];
+    const N = styleKeys.length;
+    const sizes = styleKeys.map(key => smartSize(key, text));
+
+    // Guaranteed-no-overlap ring:
+    //   Treat each item as a circle of radius = half its bounding-box diagonal.
+    //   Chord between two neighbours on a circle of radius R is 2R·sin(π/N);
+    //   require that chord ≥ r_i + r_{i+1} + gap for every adjacent pair.
+    // Items keep their natural size — if the ring is bigger than the
+    // viewport, we auto-zoom-out (below) rather than crush the items.
+    const gap = 36;
+    const halfDiag = sizes.map(s => 0.5 * Math.hypot(s.w, s.h));
+    let maxPairChord = 0;
+    for (let i = 0; i < N; i++) {
+      const j = (i + 1) % N;
+      maxPairChord = Math.max(maxPairChord, halfDiag[i] + halfDiag[j] + gap);
+    }
+    const R = Math.max(160, maxPairChord / (2 * Math.sin(Math.PI / N)));
+
+    styleKeys.forEach((key, i) => {
+      const style = STYLES[key];
+      const angle = (i / N) * Math.PI * 2 - Math.PI / 2;
+      const size = sizes[i];
+      const cx = creator.x + Math.cos(angle) * R;
+      const cy = creator.y + Math.sin(angle) * R;
+      const item = createItem({
+        style: key,
+        text,
+        x: cx - size.w / 2,
+        y: cy - size.h / 2,
+        w: size.w, h: size.h,
+        fillIndex: Math.max(0, COLORS.indexOf(style.fill)),
+        fontIndex: Math.max(0, FONTS.indexOf(style.font)),
+        creator,
+      });
+      creator.items.push(item);
+    });
+
+    // Auto-zoom + recenter so the entire ring is visible with breathing room.
+    // Users can still pinch-zoom in afterwards; this just makes the initial
+    // reveal fit on screen no matter how long the text is.
+    const maxHalfExt = Math.max(...sizes.map(s => Math.max(s.w, s.h) / 2));
+    const need = 2 * (R + maxHalfExt) + 80;
+    const targetZoom = Math.min(1, window.innerWidth / need, window.innerHeight / need);
+    state.zoom = Math.max(MIN_ZOOM, targetZoom);
+    state.panX = window.innerWidth  / 2 - creator.x * state.zoom;
+    state.panY = window.innerHeight / 2 - creator.y * state.zoom;
+    applyTransform();
+  }
+
+  // Left/Right arrows (no selection): swap ONLY the latest ring for the next bank.
+  // Older creators keep whatever ring they were showing.
+  function cycleBank(dir) {
+    state.currentBank = (state.currentBank + dir + STYLE_BANKS.length) % STYLE_BANKS.length;
+    // Find the most-recently-created creator that actually has a materialized ring.
+    let latest = null;
+    for (let i = state.creators.length - 1; i >= 0; i--) {
+      if (state.creators[i].items.length > 0) { latest = state.creators[i]; break; }
+    }
+    if (!latest) {
+      showToast('Bank ' + (state.currentBank + 1) + '/' + STYLE_BANKS.length);
+      return;
+    }
+    latest.items.forEach(item => {
+      item.el.remove();
+      state.items = state.items.filter(i => i !== item);
+    });
+    latest.items = [];
+    materializeRing(latest);
+    showToast('Bank ' + (state.currentBank + 1) + '/' + STYLE_BANKS.length);
+  }
+
+  // Grow the natural box for this style until fitted text hits a comfortable size,
+  // preserving the style's natural aspect ratio.
+  const _smartCtx = document.createElement('canvas').getContext('2d');
+  function smartSize(styleKey, rawText) {
+    const style = STYLES[styleKey];
+    const marg = TEXT_MARGIN[styleKey];
+    const text = style.upper ? rawText.toUpperCase() : rawText;
+    const italic = style.italic ? 'italic ' : '';
+    const targetFont = 36;
+    const minFont = 26;
+    const maxW = 900, maxH = 700;
+    const ar = style.size.w / style.size.h;
+
+    let w = style.size.w, h = style.size.h;
+    for (let i = 0; i < 40; i++) {
+      const textW = Math.max(30, w - marg.mx);
+      const textH = Math.max(30, h - marg.my);
+      const fit = fitText(_smartCtx, text, textW, textH, style.font, italic);
+      if (fit.size >= targetFont) return { w: Math.round(w), h: Math.round(h) };
+      if (w >= maxW || h >= maxH) {
+        // Cap: accept whatever we have, so long as font at least readable
+        if (fit.size >= minFont) return { w: Math.round(w), h: Math.round(h) };
+        return { w: Math.round(Math.min(w, maxW)), h: Math.round(Math.min(h, maxH)) };
+      }
+      w = Math.min(maxW, w * 1.14);
+      h = Math.min(maxH, w / ar);
+    }
+    return { w: Math.round(w), h: Math.round(h) };
+  }
+
+  // =====================================================================
+  //  ITEMS
+  // =====================================================================
+
+  function createItem(props) {
+    const item = {
+      id: state.nextId++,
+      type: props.type || 'style',
+      style: props.style,
+      text: props.text,
+      src: props.src || null,
+      x: props.x, y: props.y,
+      w: props.w, h: props.h,
+      fillIndex: props.fillIndex ?? 0,
+      fontIndex: props.fontIndex ?? 0,
+      creator: props.creator || null,
+    };
+
+    const el = document.createElement('div');
+    el.className = 'item';
+    el.style.left = item.x + 'px';
+    el.style.top  = item.y + 'px';
+    el.style.width  = item.w + 'px';
+    el.style.height = item.h + 'px';
+
+    if (item.type === 'image') {
+      const img = document.createElement('img');
+      img.src = item.src;
+      img.draggable = false;
+      el.appendChild(img);
+      item.img = img;
+    } else {
+      const canvas = document.createElement('canvas');
+      el.appendChild(canvas);
+      item.canvas = canvas;
+    }
+
+    ['nw','ne','sw','se','n','s','e','w'].forEach(dir => {
+      const h = document.createElement('div');
+      h.className = 'handle ' + dir;
+      h.dataset.dir = dir;
+      h.addEventListener('mousedown', (e) => startResize(e, item, dir));
+      el.appendChild(h);
+    });
+
+    el.addEventListener('mousedown', (e) => {
+      if (e.target.classList.contains('handle')) return;
+      e.stopPropagation();
+      startDrag(e, item);
+    });
+
+    world.appendChild(el);
+    item.el = el;
+    if (item.type === 'style') {
+      setupCanvas(item.canvas, item.w, item.h);
+      redrawItem(item);
+    }
+    state.items.push(item);
+    return item;
+  }
+
+  function redrawItem(item) {
+    if (item.type !== 'style') return;
+    setupCanvas(item.canvas, item.w, item.h);
+    drawStyle(
+      item.canvas.getContext('2d'),
+      item.style, item.w, item.h,
+      item.text,
+      COLORS[item.fillIndex],
+      FONTS[item.fontIndex]
+    );
+  }
+
+  function setupCanvas(canvas, w, h) {
+    canvas.width  = Math.round(w * DPR);
+    canvas.height = Math.round(h * DPR);
+    canvas.style.width  = w + 'px';
+    canvas.style.height = h + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(DPR, DPR);
+  }
+
+  function selectItem(item) {
+    if (state.selected && state.selected !== item) {
+      state.selected.el.classList.remove('selected');
+    }
+    state.selected = item;
+    if (item) item.el.classList.add('selected');
+  }
+
+  function deleteItem(item) {
+    item.el.remove();
+    state.items = state.items.filter(i => i !== item);
+    if (item.creator) {
+      item.creator.items = item.creator.items.filter(i => i !== item);
+    }
+    if (state.selected === item) state.selected = null;
+  }
+
+  function cycleColor(item, dir) {
+    if (item.type !== 'style') return;
+    item.fillIndex = (item.fillIndex + dir + COLORS.length) % COLORS.length;
+    redrawItem(item);
+    copyItem(item);
+  }
+
+  function cycleFont(item, dir) {
+    if (item.type !== 'style') return;
+    item.fontIndex = (item.fontIndex + dir + FONTS.length) % FONTS.length;
+    redrawItem(item);
+    copyItem(item);
+  }
+
+  // ---------- Drag (move) ----------
+  function startDrag(e, item) {
+    selectItem(item);
+    const startX = e.clientX, startY = e.clientY;
+    const origX = item.x, origY = item.y;
+    let moved = false;
+
+    function move(ev) {
+      const dx = (ev.clientX - startX) / state.zoom;
+      const dy = (ev.clientY - startY) / state.zoom;
+      if (!moved && Math.hypot(dx * state.zoom, dy * state.zoom) < 3) return;
+      moved = true;
+      item.x = origX + dx;
+      item.y = origY + dy;
+      item.el.style.left = item.x + 'px';
+      item.el.style.top  = item.y + 'px';
+      repositionAttachedEditor(item);
+    }
+    function up() {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      if (!moved) copyItem(item);
+    }
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  }
+
+  // ---------- Resize ----------
+  function startResize(e, item, dir) {
+    e.stopPropagation();
+    e.preventDefault();
+    selectItem(item);
+    const startX = e.clientX, startY = e.clientY;
+    const origX = item.x, origY = item.y, origW = item.w, origH = item.h;
+    const MIN = 60;
+
+    function move(ev) {
+      let dx = (ev.clientX - startX) / state.zoom;
+      let dy = (ev.clientY - startY) / state.zoom;
+      let x = origX, y = origY, w = origW, h = origH;
+      if (dir.includes('e')) w = Math.max(MIN, origW + dx);
+      if (dir.includes('s')) h = Math.max(MIN, origH + dy);
+      if (dir.includes('w')) { w = Math.max(MIN, origW - dx); x = origX + (origW - w); }
+      if (dir.includes('n')) { h = Math.max(MIN, origH - dy); y = origY + (origH - h); }
+      item.x = x; item.y = y; item.w = w; item.h = h;
+      item.el.style.left = x + 'px';
+      item.el.style.top  = y + 'px';
+      item.el.style.width  = w + 'px';
+      item.el.style.height = h + 'px';
+      redrawItem(item);
+      repositionAttachedEditor(item);
+    }
+    function up() {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      copyItem(item);
+    }
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  }
+
+  // =====================================================================
+  //  CLIPBOARD
+  // =====================================================================
+
+  async function copyItem(item) {
+    try {
+      let blob;
+      if (item.type === 'image') {
+        // Re-encode the pasted image at its natural resolution.
+        const img = await loadImage(item.src);
+        const off = document.createElement('canvas');
+        off.width  = img.naturalWidth;
+        off.height = img.naturalHeight;
+        off.getContext('2d').drawImage(img, 0, 0);
+        blob = await new Promise(r => off.toBlob(r, 'image/png'));
+      } else {
+        const off = document.createElement('canvas');
+        off.width  = Math.round(item.w * EXPORT_SCALE);
+        off.height = Math.round(item.h * EXPORT_SCALE);
+        const ctx = off.getContext('2d');
+        ctx.scale(EXPORT_SCALE, EXPORT_SCALE);
+        drawStyle(ctx, item.style, item.w, item.h, item.text,
+                  COLORS[item.fillIndex], FONTS[item.fontIndex]);
+        blob = await new Promise(r => off.toBlob(r, 'image/png'));
+      }
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      showToast('Copied!');
+    } catch (err) {
+      console.error(err);
+      showToast('Copy failed');
+    }
+  }
+
+  function loadImage(src) {
+    return new Promise((res, rej) => {
+      const img = new Image();
+      img.onload = () => res(img);
+      img.onerror = rej;
+      img.src = src;
+    });
+  }
+
+  function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 1000);
+  }
+
+  // =====================================================================
+  //  DRAWING
+  // =====================================================================
+
+  function drawStyle(ctx, styleKey, W, H, text, fill, font) {
+    ctx.clearRect(0, 0, W, H);
+    DRAWERS[styleKey](ctx, W, H, text, fill, font, STYLES[styleKey]);
+  }
+
+  const DRAWERS = {
+    caption:     drawCaption,
+    narrator:    drawNarrator,
+    silver:      drawSilver,
+    silvercloud: drawSilverCloud,
+    display:     drawDisplay,
+    dialog:      drawDialog,
+    double:      drawDouble,
+    speech:   drawSpeech,
+    thought:  drawThought,
+    halftonebubble: drawHalftoneBubble,
+    burst:    drawBurst,
+    sticker:  drawSticker,
+    soundfx:  drawSoundFX,
+    pop:      drawPop,
+    halftone: drawHalftone,
+    chromatic:drawChromatic,
+    glitch:   drawGlitch,
+    neon:     drawNeon,
+    kirby:    drawKirby,
+    stamp:    drawStamp,
+  };
+
+  function drawCaption(ctx, W, H, text, fill, font, style) {
+    const s = Math.min(W, H) / 110;
+    const pad = 8 * s, shadow = 6 * s, border = 4 * s;
+    const x = pad, y = pad;
+    const w = W - pad*2 - shadow, h = H - pad*2 - shadow;
+
+    ctx.fillStyle = '#000';
+    ctx.fillRect(x + shadow, y + shadow, w, h);
+    ctx.fillStyle = fill;
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = border;
+    ctx.strokeRect(x + border/2, y + border/2, w - border, h - border);
+
+    const ink = isDark(fill) ? '#fff' : '#000';
+    drawFittedText(ctx, text, x + w/2, y + h/2, w - 30 * s, h - 26 * s, style, font, ink);
+  }
+
+  function drawSpeech(ctx, W, H, text, fill, font, style) {
+    const s = Math.min(W, H) / 150;
+    const bw = 2 * s;   // border half-width
+    const tailH = 26 * s;
+    const cx = W/2, cy = H/2 - 10 * s;
+    const rx = W/2 - 14 * s, ry = H/2 - (16 + tailH * 0.45) * s;
+    const tailBaseX1 = cx - 20 * s, tailBaseX2 = cx + 4 * s;
+    const tailBaseY  = cy + ry - 6 * s;
+    const tailTipX   = cx - 12 * s, tailTipY = cy + ry + tailH;
+
+    // Outline (black union of ellipse + triangle)
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx + bw, ry + bw, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(tailBaseX1 - bw, tailBaseY);
+    ctx.lineTo(tailTipX - bw,  tailTipY + bw);
+    ctx.lineTo(tailBaseX2 + bw, tailBaseY);
+    ctx.closePath();
+    ctx.fill();
+
+    // Fill
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx - bw, ry - bw, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(tailBaseX1 + 4 * s, tailBaseY - 5 * s);
+    ctx.lineTo(tailTipX,           tailTipY - 5 * s);
+    ctx.lineTo(tailBaseX2 - 4 * s, tailBaseY - 5 * s);
+    ctx.closePath();
+    ctx.fill();
+
+    const ink = isDark(fill) ? '#fff' : '#000';
+    drawFittedText(ctx, text, cx, cy, rx * 1.55, ry * 1.4, style, font, ink);
+  }
+
+  function drawThought(ctx, W, H, text, fill, font, style) {
+    const s = Math.min(W, H) / 180;
+    const bw = 2 * s;
+    // Reserve a tail zone at the bottom; the body ellipse fills the rest.
+    const tailZone = 46 * s;
+    const cx = W/2;
+    const bodyTop = 10 * s;
+    const bodyBottom = H - tailZone;
+    const cy = (bodyTop + bodyBottom) / 2;
+    const rx = W/2 - 22 * s;
+    const ry = (bodyBottom - bodyTop) / 2;
+    const puffs = 10;
+    const puffR = Math.min(rx, ry) * 0.32;
+    const tailX = cx - rx * 0.42;
+
+    // ---- Outline pass ----
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx + bw, ry + bw, 0, 0, Math.PI * 2);
+    ctx.fill();
+    for (let i = 0; i < puffs; i++) {
+      const a = (i / puffs) * Math.PI * 2 - Math.PI/2;
+      const px = cx + Math.cos(a) * rx;
+      const py = cy + Math.sin(a) * ry;
+      ctx.beginPath();
+      ctx.arc(px, py, puffR + bw, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.beginPath(); ctx.arc(tailX,           cy + ry + 14 * s, 13 * s, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(tailX - 20 * s,  cy + ry + 32 * s, 8 * s,  0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(tailX - 34 * s,  cy + ry + 44 * s, 4 * s,  0, Math.PI*2); ctx.fill();
+
+    // ---- Fill pass ----
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx - bw, ry - bw, 0, 0, Math.PI * 2);
+    ctx.fill();
+    for (let i = 0; i < puffs; i++) {
+      const a = (i / puffs) * Math.PI * 2 - Math.PI/2;
+      const px = cx + Math.cos(a) * rx;
+      const py = cy + Math.sin(a) * ry;
+      ctx.beginPath();
+      ctx.arc(px, py, puffR - bw, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx * 0.94, ry * 0.94, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath(); ctx.arc(tailX,          cy + ry + 14 * s, 9 * s, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(tailX - 20 * s, cy + ry + 32 * s, 4 * s, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(tailX - 34 * s, cy + ry + 44 * s, 1.5 * s, 0, Math.PI*2); ctx.fill();
+
+    const ink = isDark(fill) ? '#fff' : '#000';
+    drawFittedText(ctx, text, cx, cy, rx * 1.55, ry * 1.55, style, font, ink);
+  }
+
+  function drawHalftoneBubble(ctx, W, H, text, fill, font, style) {
+    // Rounded-rect speech bubble sitting on top of a radial halftone-dot
+    // backdrop with a downward-right tail. Matches the screenshot.png
+    // reference in text_styles/.
+    const s = Math.min(W, H) / 200;
+    const cx = W/2, cy = H/2;
+    const bw2 = Math.max(1.6, 2.6 * s); // outline half-width
+    const tailZone = 44 * s;
+    const bx = 22 * s;
+    const bwidth = W - bx*2;
+    const bTop = 14 * s;
+    const bHeight = H - bTop - tailZone - 8 * s;
+    const r = 26 * s;
+
+    // 1. Radial halftone backdrop — denser toward center, thinning out
+    ctx.fillStyle = 'rgba(20,20,20,0.72)';
+    const spacing = Math.max(6, 8 * s);
+    const maxDotR = Math.min(3.2, 3.2 * s);
+    for (let y = spacing/2; y < H; y += spacing) {
+      for (let x = spacing/2; x < W; x += spacing) {
+        const dx = (x - cx) / (W/2);
+        const dy = (y - cy) / (H/2);
+        const d = Math.sqrt(dx*dx + dy*dy);
+        // Sparsest at extremes and behind bubble center — densest in a ring
+        // Reference is bright radial dot burst, so peak density mid-radius.
+        const density = Math.max(0, 1.4 - Math.abs(d - 0.55) * 3.4);
+        if (density < 0.15) continue;
+        ctx.beginPath();
+        ctx.arc(x, y, maxDotR * density, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // 2. Bubble body — draw outline layer first (rounded rect + tail as one path)
+    const tailBaseX1 = cx + 8 * s;
+    const tailBaseX2 = cx + 46 * s;
+    const tailBaseY  = bTop + bHeight - bw2;
+    const tailTipX   = cx + 60 * s;
+    const tailTipY   = bTop + bHeight + tailZone;
+
+    // Outline: draw slightly-outset rounded rect
+    ctx.fillStyle = '#000';
+    roundedRectPath(ctx, bx - bw2, bTop - bw2, bwidth + bw2*2, bHeight + bw2*2, r + bw2);
+    ctx.fill();
+    // Outline tail
+    ctx.beginPath();
+    ctx.moveTo(tailBaseX1 - bw2, tailBaseY);
+    ctx.lineTo(tailTipX + bw2,   tailTipY + bw2);
+    ctx.lineTo(tailBaseX2 + bw2, tailBaseY);
+    ctx.closePath();
+    ctx.fill();
+
+    // Fill: bubble body
+    ctx.fillStyle = fill;
+    roundedRectPath(ctx, bx, bTop, bwidth, bHeight, r);
+    ctx.fill();
+    // Fill tail
+    ctx.beginPath();
+    ctx.moveTo(tailBaseX1 + 2 * s, tailBaseY - 2 * s);
+    ctx.lineTo(tailTipX,           tailTipY - 4 * s);
+    ctx.lineTo(tailBaseX2 - 2 * s, tailBaseY - 2 * s);
+    ctx.closePath();
+    ctx.fill();
+    // Hide the outline seam between body and tail
+    ctx.fillRect(tailBaseX1, tailBaseY - bw2, tailBaseX2 - tailBaseX1, bw2 * 2);
+
+    const ink = isDark(fill) ? '#fff' : '#000';
+    drawFittedText(ctx, text, cx, bTop + bHeight/2, bwidth - 50 * s, bHeight - 40 * s, style, font, ink);
+  }
+
+  function drawBurst(ctx, W, H, text, fill, font, style) {
+    const s = Math.min(W, H) / 150;
+    const cx = W/2, cy = H/2;
+    const outerR = Math.min(W, H)/2 - 6 * s;
+    const innerR = outerR * 0.76;
+    const spikes = 14;
+    const bw = 3 * s;
+
+    ctx.fillStyle = '#000';
+    starPath(ctx, cx, cy, spikes, outerR + bw, innerR + bw);
+    ctx.fill();
+
+    ctx.fillStyle = fill;
+    starPath(ctx, cx, cy, spikes, outerR, innerR);
+    ctx.fill();
+
+    drawFittedText(ctx, text, cx, cy, innerR * 1.35, innerR * 1.35, style, font, '#fff', '#000');
+  }
+
+  function drawSticker(ctx, W, H, text, fill, font, style) {
+    const s = Math.min(W, H) / 150;
+    const pad = 12 * s, r = 22 * s;
+    const shadowOff = 6 * s, shadowDown = 8 * s;
+    const band = 5 * s, inner = 6 * s;
+    const x = pad, y = pad;
+    const w = W - pad*2, h = H - pad*2;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    roundedRectPath(ctx, x + shadowOff, y + shadowDown, w, h, r);
+    ctx.fill();
+    ctx.fillStyle = '#000';
+    roundedRectPath(ctx, x, y, w, h, r);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    roundedRectPath(ctx, x + band, y + band, w - band*2, h - band*2, r - band + 1);
+    ctx.fill();
+    ctx.fillStyle = fill;
+    roundedRectPath(ctx, x + band + inner, y + band + inner, w - (band + inner)*2, h - (band + inner)*2, r - band - inner + 2);
+    ctx.fill();
+
+    const ink = isDark(fill) ? '#fff' : '#000';
+    drawFittedText(ctx, text, x + w/2, y + h/2, w - 46 * s, h - 40 * s, style, font, ink);
+  }
+
+  function drawSoundFX(ctx, W, H, text, fill, font, style) {
+    const cx = W/2, cy = H/2;
+    const displayText = style.upper ? text.toUpperCase() : text;
+    const maxW = W - 24;
+    const maxH = H - 30;
+    const fit = fitText(ctx, displayText, maxW, maxH, font);
+
+    ctx.font = `bold ${fit.size}px "${font}", cursive`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.miterLimit = 2;
+    const lineH = fit.size * 1.05;
+    const startY = cy - (fit.lines.length - 1) * lineH / 2;
+    const strokeW = Math.max(4, fit.size * 0.15);
+    const depth = Math.max(4, Math.round(fit.size * 0.16));
+    const extrude = shade(fill, -0.45);
+
+    fit.lines.forEach((line, i) => {
+      const y = startY + i * lineH;
+      // Soft drop shadow behind the whole thing
+      ctx.fillStyle = 'rgba(0,0,0,0.22)';
+      ctx.fillText(line, cx + depth + 6, y + depth + 6);
+      // 3D extrusion — filled offset copies stepping toward the front face
+      ctx.fillStyle = extrude;
+      for (let k = depth; k >= 1; k--) {
+        ctx.fillText(line, cx + k, y + k);
+      }
+      // Outline the extrusion silhouette so the back edge reads
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = strokeW * 0.75;
+      ctx.strokeText(line, cx + depth, y + depth);
+      // Front face
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = strokeW;
+      ctx.strokeText(line, cx, y);
+      ctx.fillStyle = fill;
+      ctx.fillText(line, cx, y);
+    });
+  }
+
+  function drawPop(ctx, W, H, text, fill, font, style) {
+    const cx = W/2, cy = H/2;
+    const displayText = text.toUpperCase();
+
+    // 0. Comic panel: black outer border + white fill (defines the scene)
+    const br = 14;
+    ctx.fillStyle = '#000';
+    roundedRectPath(ctx, 0, 0, W, H, br);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    roundedRectPath(ctx, 5, 5, W - 10, H - 10, br - 3);
+    ctx.fill();
+
+    // Clip everything else to the panel interior so speed spikes don't spill
+    ctx.save();
+    roundedRectPath(ctx, 5, 5, W - 10, H - 10, br - 3);
+    ctx.clip();
+
+    // 1. Halftone background — sparser near center, denser near corners
+    drawHalftoneBG(ctx, W, H);
+
+    // 2. Speed spikes emanating outward
+    const spikeOuter = Math.max(W, H) * 0.7;
+    drawSpeedSpikes(ctx, cx, cy, spikeOuter, 14, spikeOuter * 0.42, 5);
+
+    // 3. Blue jagged starburst — inset is a small fraction of canvas so the
+    //    star always fills the panel regardless of size.
+    const outerR = Math.min(W, H) * 0.44;
+    const innerR = outerR * 0.74;
+    ctx.fillStyle = '#000';
+    starPath(ctx, cx, cy, 12, outerR + 3, innerR + 3);
+    ctx.fill();
+    ctx.fillStyle = fill;
+    starPath(ctx, cx, cy, 12, outerR, innerR);
+    ctx.fill();
+
+    // 4. Chunky 3D text with yellow polka-dot fill
+    const dotScale = Math.max(1, Math.min(W, H) / 220);
+    const pattern = makePolkaPattern(ctx, '#fff33f', '#d19400', 3 * dotScale, 14 * dotScale);
+
+    const fit = fitText(ctx, displayText, innerR * 1.55, innerR * 0.95, font);
+    ctx.font = `bold ${fit.size}px "${font}", cursive`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.miterLimit = 2;
+
+    const lineH = fit.size * 1.05;
+    const startY = cy - (fit.lines.length - 1) * lineH / 2;
+    const strokeW = Math.max(4, fit.size * 0.13);
+    const extrudeDepth = Math.max(3, Math.round(fit.size * 0.14));
+
+    fit.lines.forEach((line, i) => {
+      const y = startY + i * lineH;
+      // Deep gray shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.22)';
+      ctx.fillText(line, cx + extrudeDepth * 2, y + extrudeDepth * 2);
+      // Orange 3D extrusion
+      ctx.fillStyle = '#ff6a00';
+      for (let k = extrudeDepth; k >= 1; k--) {
+        ctx.fillText(line, cx + k, y + k);
+      }
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = strokeW;
+      ctx.strokeText(line, cx + extrudeDepth, y + extrudeDepth);
+      // Front face
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = strokeW;
+      ctx.strokeText(line, cx, y);
+      ctx.fillStyle = pattern;
+      ctx.fillText(line, cx, y);
+    });
+
+    ctx.restore();
+  }
+
+  function drawHalftone(ctx, W, H, text, fill, font, style) {
+    const cx = W/2, cy = H/2;
+    const displayText = style.upper ? text.toUpperCase() : text;
+    const maxW = W - 24, maxH = H - 24;
+    const fit = fitText(ctx, displayText, maxW, maxH, font);
+
+    ctx.font = `bold ${fit.size}px "${font}", cursive`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.miterLimit = 2;
+
+    const lineH = fit.size * 1.05;
+    const startY = cy - (fit.lines.length - 1) * lineH / 2;
+    const strokeW = Math.max(4, fit.size * 0.13);
+    const offset = Math.max(4, Math.round(fit.size * 0.14));
+
+    const dotColor = isDark(fill) ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.65)';
+    const dotScale = Math.max(1, fit.size / 70);
+    const pattern = makePolkaPattern(ctx, fill, dotColor, 2.5 * dotScale, 11 * dotScale);
+
+    fit.lines.forEach((line, i) => {
+      const y = startY + i * lineH;
+      // Offset shadow copy
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = strokeW;
+      ctx.strokeText(line, cx + offset, y + offset);
+      ctx.fillStyle = '#000';
+      ctx.fillText(line, cx + offset, y + offset);
+      // Main with halftone pattern
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = strokeW;
+      ctx.strokeText(line, cx, y);
+      ctx.fillStyle = pattern;
+      ctx.fillText(line, cx, y);
+    });
+  }
+
+  function drawRadial(ctx, W, H, text, fill, font, style) {
+    const cx = W/2, cy = H/2;
+    const R = Math.min(W, H)/2 - 4;
+    const centerR = R * 0.56;
+
+    // Speed spikes from just outside center to edge
+    drawSpeedSpikes(ctx, cx, cy, R, 16, centerR + 4, 4);
+
+    // Center circle
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.arc(cx, cy, centerR + 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.arc(cx, cy, centerR, 0, Math.PI * 2);
+    ctx.fill();
+
+    const ink = isDark(fill) ? '#fff' : '#000';
+    drawFittedText(ctx, text, cx, cy, centerR * 1.45, centerR * 1.45, style, font, ink);
+  }
+
+  // ---------- CLASSIC additions ----------
+
+  function drawNarrator(ctx, W, H, text, fill, font, style) {
+    const s = Math.min(W, H) / 120;
+    const shadow = 5 * s;
+    const pad = 6 * s;
+    const border = 3 * s;
+    const x = pad, y = pad;
+    const w = W - pad*2 - shadow, h = H - pad*2 - shadow;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(x + shadow, y + shadow, w, h);
+    ctx.fillStyle = fill;
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = border;
+    ctx.strokeRect(x + border/2, y + border/2, w - border, h - border);
+
+    const ink = isDark(fill) ? '#fff' : '#111';
+    drawFittedText(ctx, text, x + w/2, y + h/2, w - 28*s, h - 28*s, style, font, ink);
+  }
+
+  function drawSilver(ctx, W, H, text, fill, font, style) {
+    // Silver-Age Marvel narration box (X-Men reference):
+    //   pure yellow fill, thin black border (~2px), no drop shadow, generous
+    //   interior padding, Comic-Neue lettering.
+    const s = Math.min(W, H) / 120;
+    const pad = 3 * s;
+    const border = Math.max(1.8, 2.4 * s);
+    const x = pad, y = pad;
+    const w = W - pad*2, h = H - pad*2;
+
+    ctx.fillStyle = fill;
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = border;
+    ctx.strokeRect(x + border/2, y + border/2, w - border, h - border);
+
+    const ink = isDark(fill) ? '#fff' : '#000';
+    drawFittedText(ctx, text, x + w/2, y + h/2, w - 22*s, h - 20*s, style, font, ink);
+  }
+
+  function drawSilverCloud(ctx, W, H, text, fill, font, style) {
+    // Silver-Age Marvel thought cloud (X-Men reference):
+    //   white ellipse with MANY small scallops around the perimeter and a
+    //   three-bubble cascading tail. Thin black outline.
+    const s = Math.min(W, H) / 180;
+    const bw = Math.max(1.6, 2 * s);
+    const tailZone = 46 * s;
+    const cx = W/2;
+    const bodyTop = 10 * s;
+    const bodyBottom = H - tailZone;
+    const cy = (bodyTop + bodyBottom) / 2;
+    const rx = W/2 - 16 * s;
+    const ry = (bodyBottom - bodyTop) / 2;
+    // Scallop density: proportional to the perimeter so the bumps look uniform
+    // on wide, tall, or square clouds.
+    const perim = Math.PI * (3 * (rx + ry) - Math.sqrt((3*rx + ry) * (rx + 3*ry)));
+    const scallR = Math.min(rx, ry) * 0.13;
+    const scallops = Math.max(14, Math.round(perim / (scallR * 2.6)));
+    const tailX = cx - rx * 0.42;
+
+    // ---- Outline pass (black shape, slightly outset) ----
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx + bw, ry + bw, 0, 0, Math.PI * 2);
+    ctx.fill();
+    for (let i = 0; i < scallops; i++) {
+      const a = (i / scallops) * Math.PI * 2 - Math.PI/2;
+      const px = cx + Math.cos(a) * rx;
+      const py = cy + Math.sin(a) * ry;
+      ctx.beginPath();
+      ctx.arc(px, py, scallR + bw, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Cascading tail bubbles (large → medium → tiny)
+    ctx.beginPath(); ctx.arc(tailX,           cy + ry + 14 * s, 12 * s,  0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(tailX - 18 * s,  cy + ry + 30 * s, 7 * s,   0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(tailX - 30 * s,  cy + ry + 42 * s, 3.5 * s, 0, Math.PI*2); ctx.fill();
+
+    // ---- Fill pass (fill colour, slightly inset) ----
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx - bw, ry - bw, 0, 0, Math.PI * 2);
+    ctx.fill();
+    for (let i = 0; i < scallops; i++) {
+      const a = (i / scallops) * Math.PI * 2 - Math.PI/2;
+      const px = cx + Math.cos(a) * rx;
+      const py = cy + Math.sin(a) * ry;
+      ctx.beginPath();
+      ctx.arc(px, py, scallR - bw, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Hide any interior seams between scallops and body
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx * 0.96, ry * 0.96, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath(); ctx.arc(tailX,          cy + ry + 14 * s, 8 * s,   0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(tailX - 18 * s, cy + ry + 30 * s, 4 * s,   0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(tailX - 30 * s, cy + ry + 42 * s, 1.2 * s, 0, Math.PI*2); ctx.fill();
+
+    const ink = isDark(fill) ? '#fff' : '#000';
+    drawFittedText(ctx, text, cx, cy, rx * 1.5, ry * 1.55, style, font, ink);
+  }
+
+  function drawDisplay(ctx, W, H, text, fill, font, style) {
+    // Big italic slab display — the classic Kirby "MEANWHILE...!" splash caption:
+    // huge italicised bold, heavy black outline, hard-offset shadow copy behind.
+    const s = Math.min(W, H) / 120;
+    const cx = W/2, cy = H/2;
+    const displayText = style.upper ? text.toUpperCase() : text;
+    const italic = 'italic ';
+    const fit = fitText(ctx, displayText, W - 24 * s, H - 30 * s, font, italic);
+
+    ctx.font = `${italic}bold ${fit.size}px "${font}", cursive`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.miterLimit = 2;
+
+    const lineH = fit.size * 1.05;
+    const startY = cy - (fit.lines.length - 1) * lineH / 2;
+    const strokeW = Math.max(4, fit.size * 0.14);
+    const shadow = Math.max(4, fit.size * 0.10);
+
+    fit.lines.forEach((line, i) => {
+      const y = startY + i * lineH;
+      // Hard black shadow copy (no blur), offset down-right
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = strokeW;
+      ctx.strokeText(line, cx + shadow, y + shadow);
+      ctx.fillStyle = '#000';
+      ctx.fillText(line, cx + shadow, y + shadow);
+      // Front face: black outline + coloured fill
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = strokeW;
+      ctx.strokeText(line, cx, y);
+      ctx.fillStyle = fill;
+      ctx.fillText(line, cx, y);
+    });
+  }
+
+  function drawDialog(ctx, W, H, text, fill, font, style) {
+    const s = Math.min(W, H) / 120;
+    const shadow = 5 * s, pad = 6 * s, border = 3 * s;
+    const x = pad, y = pad;
+    const w = W - pad*2 - shadow, h = H - pad*2 - shadow;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(x + shadow, y + shadow, w, h);
+    ctx.fillStyle = fill;
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = border;
+    ctx.strokeRect(x + border/2, y + border/2, w - border, h - border);
+
+    const ink = isDark(fill) ? '#fff' : '#111';
+    drawFittedText(ctx, text, x + w/2, y + h/2, w - 34*s, h - 28*s, style, font, ink);
+  }
+
+  function drawDouble(ctx, W, H, text, fill, font, style) {
+    const s = Math.min(W, H) / 120;
+    const pad = 6 * s, border = 3 * s, gap = 5 * s, innerBorder = 3 * s;
+    const x = pad, y = pad;
+    const w = W - pad*2, h = H - pad*2;
+
+    ctx.fillStyle = '#000';
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = fill;
+    ctx.fillRect(x + border, y + border, w - border*2, h - border*2);
+    ctx.strokeStyle = '#c8102e';
+    ctx.lineWidth = innerBorder;
+    const ix = x + border + gap, iy = y + border + gap;
+    const iw = w - border*2 - gap*2, ih = h - border*2 - gap*2;
+    ctx.strokeRect(ix + innerBorder/2, iy + innerBorder/2, iw - innerBorder, ih - innerBorder);
+
+    const ink = isDark(fill) ? '#fff' : '#111';
+    drawFittedText(ctx, text, x + w/2, y + h/2, iw - 20*s, ih - 20*s, style, font, ink);
+  }
+
+  // ---------- MODERN / SPIDER-VERSE additions ----------
+
+  function drawChromatic(ctx, W, H, text, fill, font, style) {
+    const s = Math.min(W, H) / 120;
+    const cx = W/2, cy = H/2;
+    const displayText = style.upper ? text.toUpperCase() : text;
+    const fit = fitText(ctx, displayText, W - 20 * s, H - 20 * s, font);
+
+    ctx.font = `bold ${fit.size}px "${font}", cursive`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const lineH = fit.size * 1.08;
+    const startY = cy - (fit.lines.length - 1) * lineH / 2;
+    const offset = Math.max(3, fit.size * 0.06);
+
+    fit.lines.forEach((line, i) => {
+      const y = startY + i * lineH;
+      // Cyan channel offset
+      ctx.fillStyle = '#00e5ff';
+      ctx.fillText(line, cx - offset, y - offset * 0.4);
+      // Magenta channel offset (opposite direction)
+      ctx.fillStyle = '#ff0055';
+      ctx.fillText(line, cx + offset, y + offset * 0.4);
+      // White core on top
+      ctx.fillStyle = fill;
+      ctx.fillText(line, cx, y);
+    });
+  }
+
+  function drawGlitch(ctx, W, H, text, fill, font, style) {
+    const s = Math.min(W, H) / 120;
+    const cx = W/2, cy = H/2;
+    const displayText = style.upper ? text.toUpperCase() : text;
+    const fit = fitText(ctx, displayText, W - 20 * s, H - 20 * s, font);
+
+    ctx.font = `bold ${fit.size}px "${font}", cursive`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const lineH = fit.size * 1.08;
+    const startY = cy - (fit.lines.length - 1) * lineH / 2;
+
+    fit.lines.forEach((line, i) => {
+      const y = startY + i * lineH;
+      // Base
+      ctx.fillStyle = fill;
+      ctx.fillText(line, cx, y);
+      // Horizontal glitch slices — cut bands, redraw in offset bright colors
+      const shift = fit.size * 0.14;
+      const slices = [
+        { yOff: -0.32, h: 0.14, xShift:  shift, color: '#ff2266' },
+        { yOff:  0.04, h: 0.11, xShift: -shift, color: '#00ddff' },
+        { yOff:  0.24, h: 0.09, xShift:  shift * 0.6, color: '#ffff33' },
+      ];
+      for (const sl of slices) {
+        const bandY = y + sl.yOff * fit.size;
+        const bandH = sl.h * fit.size;
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, bandY, W, bandH);
+        ctx.clip();
+        ctx.fillStyle = sl.color;
+        ctx.fillText(line, cx + sl.xShift, y);
+        ctx.restore();
+      }
+    });
+  }
+
+  function drawNeon(ctx, W, H, text, fill, font, style) {
+    const s = Math.min(W, H) / 120;
+    const cx = W/2, cy = H/2;
+    // Dark backdrop
+    ctx.fillStyle = '#0a0812';
+    ctx.fillRect(0, 0, W, H);
+
+    const displayText = style.upper ? text.toUpperCase() : text;
+    const fit = fitText(ctx, displayText, W - 40 * s, H - 40 * s, font);
+
+    ctx.font = `bold ${fit.size}px "${font}", cursive`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.miterLimit = 2;
+    const lineH = fit.size * 1.08;
+    const startY = cy - (fit.lines.length - 1) * lineH / 2;
+
+    fit.lines.forEach((line, i) => {
+      const y = startY + i * lineH;
+      // Big fuzzy outer glow
+      ctx.shadowColor = fill;
+      ctx.shadowBlur = 40 * s;
+      ctx.strokeStyle = fill;
+      ctx.lineWidth = 5 * s;
+      ctx.strokeText(line, cx, y);
+      ctx.strokeText(line, cx, y);
+      // Medium glow
+      ctx.shadowBlur = 20 * s;
+      ctx.lineWidth = 3 * s;
+      ctx.strokeText(line, cx, y);
+      // Bright white core
+      ctx.shadowBlur = 8 * s;
+      ctx.shadowColor = '#ffffff';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(line, cx, y);
+    });
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = 'transparent';
+  }
+
+  function drawKirby(ctx, W, H, text, fill, font, style) {
+    const s = Math.min(W, H) / 120;
+    const cx = W/2, cy = H/2;
+    const outerR = Math.min(W, H) * 0.42;  // leave ~15% ring for krackle dots
+    const innerR = outerR * 0.72;
+    const spikes = 16;
+
+    // Central star burst
+    ctx.fillStyle = '#000';
+    starPath(ctx, cx, cy, spikes, outerR + 3 * s, innerR + 3 * s);
+    ctx.fill();
+    ctx.fillStyle = fill;
+    starPath(ctx, cx, cy, spikes, outerR, innerR);
+    ctx.fill();
+
+    // Kirby-krackle: irregular black blobs scattered around the burst
+    ctx.fillStyle = '#000';
+    let seed = 24680;
+    const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+    const numDots = 36;
+    for (let i = 0; i < numDots; i++) {
+      const angle = rnd() * Math.PI * 2;
+      const dist = outerR * (1.06 + rnd() * 0.4);
+      const dx = cx + Math.cos(angle) * dist;
+      const dy = cy + Math.sin(angle) * dist;
+      if (dx < 3 * s || dx > W - 3 * s || dy < 3 * s || dy > H - 3 * s) continue;
+      const r = (2.5 + rnd() * 5) * s;
+      ctx.save();
+      ctx.translate(dx, dy);
+      ctx.rotate(rnd() * Math.PI * 2);
+      ctx.scale(1, 0.4 + rnd() * 0.7);
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    drawFittedText(ctx, text, cx, cy, innerR * 1.35, innerR * 1.35, style, font, '#ffffff', '#000');
+  }
+
+  function drawStamp(ctx, W, H, text, fill, font, style) {
+    const s = Math.min(W, H) / 120;
+    const cx = W/2, cy = H/2;
+    const R = Math.min(W, H)/2 - 8 * s;
+
+    // Outer black ring
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
+    // Fill
+    ctx.fillStyle = fill;
+    ctx.beginPath(); ctx.arc(cx, cy, R - 5 * s, 0, Math.PI * 2); ctx.fill();
+    // Inner thin ring
+    ctx.strokeStyle = isDark(fill) ? '#fff' : '#000';
+    ctx.lineWidth = 2 * s;
+    ctx.beginPath(); ctx.arc(cx, cy, R - 14 * s, 0, Math.PI * 2); ctx.stroke();
+
+    const ink = isDark(fill) ? '#fff' : '#000';
+    const innerR = R - 22 * s;
+    drawFittedText(ctx, text, cx, cy, innerR * 1.35, innerR * 1.35, style, font, ink);
+  }
+
+  // ---------- helpers ----------
+
+  function drawHalftoneBG(ctx, W, H) {
+    const spacing = 9;
+    ctx.fillStyle = 'rgba(20,20,20,0.6)';
+    for (let y = spacing/2; y < H; y += spacing) {
+      for (let x = spacing/2; x < W; x += spacing) {
+        const dx = (x - W/2) / (W/2);
+        const dy = (y - H/2) / (H/2);
+        const d = Math.sqrt(dx*dx + dy*dy);
+        // Denser near edges, sparse near center
+        const r = Math.max(0, d * 3.2 - 0.55);
+        if (r < 0.25) continue;
+        ctx.beginPath();
+        ctx.arc(x, y, Math.min(2.5, r), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  function drawSpeedSpikes(ctx, cx, cy, outerR, n, innerR, width) {
+    ctx.fillStyle = '#000';
+    for (let i = 0; i < n; i++) {
+      const angle = (i / n) * Math.PI * 2 + 0.12;
+      const dx = Math.cos(angle), dy = Math.sin(angle);
+      const nx = -dy, ny = dx;
+      ctx.beginPath();
+      ctx.moveTo(cx + dx * innerR + nx * width, cy + dy * innerR + ny * width);
+      ctx.lineTo(cx + dx * innerR - nx * width, cy + dy * innerR - ny * width);
+      ctx.lineTo(cx + dx * outerR, cy + dy * outerR);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  function makePolkaPattern(ctx, bgColor, dotColor, dotR, tileSize) {
+    const c = document.createElement('canvas');
+    c.width = tileSize;
+    c.height = tileSize;
+    const p = c.getContext('2d');
+    p.fillStyle = bgColor;
+    p.fillRect(0, 0, tileSize, tileSize);
+    p.fillStyle = dotColor;
+    p.beginPath();
+    p.arc(tileSize * 0.25, tileSize * 0.25, dotR, 0, Math.PI * 2);
+    p.fill();
+    p.beginPath();
+    p.arc(tileSize * 0.75, tileSize * 0.75, dotR, 0, Math.PI * 2);
+    p.fill();
+    return ctx.createPattern(c, 'repeat');
+  }
+
+  function starPath(ctx, cx, cy, spikes, outerR, innerR) {
+    ctx.beginPath();
+    const step = Math.PI / spikes;
+    let a = -Math.PI / 2;
+    ctx.moveTo(cx + Math.cos(a) * outerR, cy + Math.sin(a) * outerR);
+    for (let i = 0; i < spikes; i++) {
+      a += step;
+      ctx.lineTo(cx + Math.cos(a) * innerR, cy + Math.sin(a) * innerR);
+      a += step;
+      ctx.lineTo(cx + Math.cos(a) * outerR, cy + Math.sin(a) * outerR);
+    }
+    ctx.closePath();
+  }
+
+  function roundedRectPath(ctx, x, y, w, h, r) {
+    r = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  function drawFittedText(ctx, rawText, cx, cy, maxW, maxH, style, font, color, strokeColor) {
+    const text = style.upper ? rawText.toUpperCase() : rawText;
+    const italic = style.italic ? 'italic ' : '';
+    const fit = fitText(ctx, text, maxW, maxH, font, italic);
+
+    ctx.font = `${italic}bold ${fit.size}px "${font}", cursive`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const lineH = fit.size * 1.08;
+    const startY = cy - (fit.lines.length - 1) * lineH / 2;
+
+    fit.lines.forEach((line, i) => {
+      const y = startY + i * lineH;
+      if (strokeColor) {
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = Math.max(3, fit.size * 0.12);
+        ctx.lineJoin = 'round';
+        ctx.miterLimit = 2;
+        ctx.strokeText(line, cx, y);
+      }
+      ctx.fillStyle = color;
+      ctx.fillText(line, cx, y);
+    });
+  }
+
+  function fitText(ctx, text, maxW, maxH, font, italic = '') {
+    let lo = 10, hi = 200, best = 10, bestLines = [text];
+    while (lo <= hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      ctx.font = `${italic}bold ${mid}px "${font}", cursive`;
+      const lines = wrap(ctx, text, maxW);
+      const lineH = mid * 1.08;
+      const totalH = lines.length * lineH;
+      const anyTooWide = lines.some(l => ctx.measureText(l).width > maxW);
+      if (totalH <= maxH && !anyTooWide) {
+        best = mid; bestLines = lines; lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    return { size: best, lines: bestLines };
+  }
+
+  function wrap(ctx, text, maxW) {
+    const words = text.split(/\s+/);
+    const lines = [];
+    let cur = '';
+    for (const w of words) {
+      const test = cur ? cur + ' ' + w : w;
+      if (ctx.measureText(test).width > maxW && cur) {
+        lines.push(cur); cur = w;
+      } else {
+        cur = test;
+      }
+    }
+    if (cur) lines.push(cur);
+    return lines;
+  }
+
+  function isDark(hex) {
+    const c = hex.replace('#', '');
+    const r = parseInt(c.substr(0,2), 16);
+    const g = parseInt(c.substr(2,2), 16);
+    const b = parseInt(c.substr(4,2), 16);
+    return (0.299*r + 0.587*g + 0.114*b) < 140;
+  }
+
+  // Lighten (amt > 0) or darken (amt < 0) a #rrggbb by fraction amt.
+  function shade(hex, amt) {
+    const c = hex.replace('#', '');
+    let r = parseInt(c.substr(0,2), 16);
+    let g = parseInt(c.substr(2,2), 16);
+    let b = parseInt(c.substr(4,2), 16);
+    if (amt < 0) {
+      r = Math.max(0, Math.round(r * (1 + amt)));
+      g = Math.max(0, Math.round(g * (1 + amt)));
+      b = Math.max(0, Math.round(b * (1 + amt)));
+    } else {
+      r = Math.min(255, Math.round(r + (255 - r) * amt));
+      g = Math.min(255, Math.round(g + (255 - g) * amt));
+      b = Math.min(255, Math.round(b + (255 - b) * amt));
+    }
+    return `rgb(${r},${g},${b})`;
+  }
+
+  // =====================================================================
+  //  SIDEBAR — every style as a clickable chip
+  // =====================================================================
+
+  const SIDEBAR_WIDTH = 220;
+
+  const STYLE_LABELS = {
+    caption:        'Caption',
+    silver:         'Silver Age',
+    narrator:       'Narrator',
+    dialog:         'Dialog',
+    double:         'Double',
+    display:        'Slab Splash',
+    speech:         'Speech',
+    thought:        'Thought',
+    silvercloud:    'Silver Cloud',
+    halftonebubble: 'Halftone Bubble',
+    burst:          'Starburst',
+    pop:            'Pop!',
+    soundfx:        'Sound FX',
+    halftone:       'Halftone',
+    chromatic:      'Chromatic',
+    glitch:         'Glitch',
+    neon:           'Neon',
+    kirby:          'Kirby',
+    sticker:        'Sticker',
+  };
+
+  // Display order — bubbles/captions first, then impact styles.
+  const SIDEBAR_ORDER = [
+    'caption', 'silver', 'narrator', 'dialog', 'double', 'display',
+    'speech', 'thought', 'silvercloud', 'halftonebubble',
+    'burst', 'pop', 'soundfx', 'halftone', 'chromatic', 'glitch', 'neon', 'kirby', 'sticker',
+  ];
+
+  // Short preview words picked to look right for each style's aspect ratio.
+  const PREVIEW_TEXT = {
+    caption: 'HELLO', silver: 'HELLO', narrator: 'HELLO', dialog: 'HELLO',
+    double: 'HELLO', display: 'WOW!',
+    speech: 'HELLO', thought: 'HMM',
+    silvercloud: 'HMM', halftonebubble: 'HELLO',
+    burst: 'POW!', pop: 'BAM!', soundfx: 'BOOM',
+    halftone: 'BAM!', chromatic: 'GLITCH', glitch: 'GLITCH',
+    neon: 'NEON', kirby: 'ZAP!', sticker: 'HELLO',
+  };
+
+  function renderSidebarChips() {
+    const chipsEl = document.getElementById('chips');
+    chipsEl.innerHTML = '';
+    SIDEBAR_ORDER.forEach(key => {
+      if (!STYLES[key] || !DRAWERS[key]) return;
+      const chip = document.createElement('div');
+      chip.className = 'chip';
+      chip.title = STYLE_LABELS[key] || key;
+
+      const previewC = document.createElement('canvas');
+      chip.appendChild(previewC);
+      const name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = STYLE_LABELS[key] || key;
+      chip.appendChild(name);
+
+      // Prevent chip clicks from starting a pan.
+      chip.addEventListener('mousedown', (e) => e.stopPropagation());
+      chip.addEventListener('click', (e) => {
+        e.stopPropagation();
+        spawnStyleAtViewport(key);
+      });
+
+      chipsEl.appendChild(chip);
+      // Render preview after DOM sizing settles.
+      requestAnimationFrame(() => renderChipPreview(previewC, key));
+    });
+  }
+
+  function renderChipPreview(canvas, styleKey) {
+    // Draw at chip's rendered size for crisp visuals on any DPR.
+    const rect = canvas.getBoundingClientRect();
+    const cw = Math.max(60, Math.floor(rect.width));
+    const ch = Math.max(40, Math.floor(rect.height));
+    canvas.width = Math.round(cw * DPR);
+    canvas.height = Math.round(ch * DPR);
+    canvas.style.width = cw + 'px';
+    canvas.style.height = ch + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(DPR, DPR);
+    const style = STYLES[styleKey];
+    drawStyle(
+      ctx, styleKey, cw, ch,
+      PREVIEW_TEXT[styleKey] || 'AA',
+      style.fill, style.font
+    );
+  }
+
+  // Spawn a style item near the center of the visible (non-sidebar) canvas area.
+  function spawnStyleAtViewport(styleKey) {
+    const style = STYLES[styleKey];
+    const text = getActiveText();
+    const size = smartSize(styleKey, text);
+    const effW = window.innerWidth - SIDEBAR_WIDTH;
+    const cxScreen = effW / 2;
+    const cyScreen = window.innerHeight / 2;
+    const w = clientToWorld(cxScreen, cyScreen);
+    const item = createItem({
+      style: styleKey,
+      text,
+      x: w.x - size.w / 2,
+      y: w.y - size.h / 2,
+      w: size.w, h: size.h,
+      fillIndex: Math.max(0, COLORS.indexOf(style.fill)),
+      fontIndex: Math.max(0, FONTS.indexOf(style.font)),
+    });
+    selectItem(item);
+    attachEditor(item, text);
+  }
+
+  // Floating text input pinned above a shelf-spawned item so its text can be
+  // edited (and re-copied) after landing on the canvas.
+  function attachEditor(item, initialText) {
+    const cx = item.x + item.w / 2;
+    const cy = item.y - 34;
+
+    const el = document.createElement('div');
+    el.className = 'creator';
+    el.style.left = cx + 'px';
+    el.style.top  = cy + 'px';
+
+    const input = document.createElement('input');
+    input.className = 'text';
+    input.placeholder = 'TYPE...';
+    input.value = initialText;
+    el.appendChild(input);
+
+    world.appendChild(el);
+
+    const creator = { id: state.nextId++, el, input, items: [item], x: cx, y: cy };
+    state.creators.push(creator);
+    item.creator = creator;
+
+    input.addEventListener('input', () => {
+      const t = creator.input.value.trim() || 'HELLO';
+      item.text = t;
+      redrawItem(item);
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        copyItem(item);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        dismissCreator(creator);
+      }
+    });
+
+    setTimeout(() => {
+      input.focus();
+      input.select();
+    }, 0);
+  }
+
+  function repositionAttachedEditor(item) {
+    const c = item.creator;
+    if (!c || c.items.length !== 1 || c.items[0] !== item) return;
+    const cx = item.x + item.w / 2;
+    const cy = item.y - 34;
+    c.x = cx; c.y = cy;
+    c.el.style.left = cx + 'px';
+    c.el.style.top  = cy + 'px';
+  }
+
+  // Prefer text from a focused creator, then selected item's text, else HELLO.
+  function getActiveText() {
+    const ae = document.activeElement;
+    if (ae && ae.tagName === 'INPUT' && ae.classList.contains('text')) {
+      const v = ae.value.trim();
+      if (v) return v;
+    }
+    if (state.selected && state.selected.text) return state.selected.text;
+    return 'HELLO';
+  }
+
+  // =====================================================================
+  //  PASTE — image on the clipboard drops onto the canvas as a movable item
+  // =====================================================================
+
+  document.addEventListener('paste', (e) => {
+    const cd = e.clipboardData;
+    if (!cd) return;
+    let imageEntry = null;
+    for (const it of cd.items) {
+      if (it.kind === 'file' && it.type.startsWith('image/')) {
+        imageEntry = it;
+        break;
+      }
+    }
+    if (!imageEntry) return;
+    e.preventDefault();
+    const blob = imageEntry.getAsFile();
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    loadImage(url).then(img => {
+      const maxDim = 480;
+      const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+      const w = Math.max(40, img.naturalWidth * scale);
+      const h = Math.max(40, img.naturalHeight * scale);
+      const effW = window.innerWidth - SIDEBAR_WIDTH;
+      const c = clientToWorld(effW / 2, window.innerHeight / 2);
+      const item = createItem({
+        type: 'image',
+        src: url,
+        x: c.x - w / 2,
+        y: c.y - h / 2,
+        w, h,
+      });
+      selectItem(item);
+      showToast('Image pasted');
+    }).catch(() => showToast('Paste failed'));
+  });
+
+  // =====================================================================
+  //  INITIAL CREATOR — spawn one empty input at viewport center on load
+  // =====================================================================
+  document.fonts.ready.then(() => {
+    renderSidebarChips();
+    openCreator((window.innerWidth - SIDEBAR_WIDTH) / 2, window.innerHeight / 2);
+  });
+</script>
+</body>
+</html>
