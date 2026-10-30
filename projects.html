@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Comic Projects</title>
+<link href="https://fonts.googleapis.com/css2?family=Bangers&display=swap" rel="stylesheet">
+<style>
+  html, body {
+    margin: 0; padding: 0;
+    min-height: 100vh;
+    background: #1c1a17;
+    color: #e8e4d8;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 40px 48px 24px;
+    max-width: 1400px;
+    margin: 0 auto;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  header h1 {
+    margin: 0;
+    font-family: 'Bangers', cursive;
+    font-size: 44px;
+    letter-spacing: 3px;
+    color: #fdf23f;
+  }
+  header .sub {
+    color: #78706a;
+    font-size: 13px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  header .actions {
+    display: flex;
+    gap: 10px;
+  }
+  .btn {
+    background: #2a2620;
+    color: #fdf23f;
+    border: 1px solid #4a4238;
+    border-radius: 4px;
+    padding: 10px 18px;
+    cursor: pointer;
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-weight: 600;
+    font-family: system-ui;
+    text-decoration: none;
+    display: inline-block;
+  }
+  .btn:hover { background: #fdf23f; color: #201d1a; }
+  .btn.danger { color: #ff6b57; border-color: #4a3630; }
+  .btn.danger:hover { background: #ff6b57; color: #fff; border-color: #ff6b57; }
+  .btn.subtle { color: #cec5b8; border-color: #302b26; background: transparent; }
+  .btn.subtle:hover { background: #2a2620; color: #fdf23f; border-color: #fdf23f; }
+
+  main {
+    padding: 12px 48px 80px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  #empty {
+    text-align: center;
+    padding: 80px 20px 60px;
+    color: #78706a;
+  }
+  #empty h2 {
+    margin: 0 0 10px;
+    font-size: 22px;
+    color: #cec5b8;
+    letter-spacing: 1.5px;
+    font-family: 'Bangers', cursive;
+  }
+  #empty p { margin: 0 0 24px; font-size: 14px; line-height: 1.6; }
+
+  #project-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+  }
+  .card {
+    background: #23201c;
+    border: 1px solid #302b26;
+    border-radius: 10px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.12s, border-color 0.12s, box-shadow 0.12s;
+    position: relative;
+  }
+  .card:hover {
+    transform: translateY(-3px);
+    border-color: #fdf23f;
+    box-shadow: 0 10px 24px rgba(0,0,0,0.35);
+  }
+  .card .thumb {
+    background: #14120f;
+    aspect-ratio: 4 / 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .card .thumb svg { width: 92%; height: 92%; }
+  .card .body {
+    padding: 12px 14px 14px;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .card .meta { min-width: 0; flex: 1; }
+  .card .title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #f0e8d8;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin: 0 0 4px;
+  }
+  .card .subline {
+    font-size: 11px;
+    color: #78706a;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .card .row-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .icon-btn {
+    background: transparent;
+    color: #78706a;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 3px 6px;
+    cursor: pointer;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    font-family: system-ui;
+  }
+  .icon-btn:hover { color: #fdf23f; border-color: #302b26; }
+  .icon-btn.danger:hover { color: #ff6b57; border-color: #4a3630; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>My Comics</h1>
+    <div class="sub" id="count-line">—</div>
+  </div>
+  <div class="actions">
+    <a class="btn subtle" href="designs.html">← Back to editor</a>
+    <a class="btn" href="designs.html?new=1">＋ New Project</a>
+  </div>
+</header>
+
+<main>
+  <div id="empty" style="display:none">
+    <h2>Nothing here yet</h2>
+    <p>Start a comic to see it saved here.<br>Every layout you pick gets its own auto-saved project.</p>
+    <a class="btn" href="designs.html?new=1">＋ New Project</a>
+  </div>
+  <div id="project-grid"></div>
+</main>
+
+<script src="project-store.js"></script>
+<script>
+'use strict';
+
+// Storage lives in project-store.js (IndexedDB + localStorage mirror).
+function loadProjectsStore() { return ProjectStore.load(); }
+function saveProjectsStore(store) { ProjectStore.save(store); }
+
+function relTime(ts) {
+  if (!ts) return 'never';
+  const s = Math.round((Date.now() - ts) / 1000);
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.floor(s / 60) + 'm ago';
+  if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+  const d = Math.floor(s / 86400);
+  if (d < 30) return d + 'd ago';
+  return new Date(ts).toLocaleDateString();
+}
+
+// Render an SVG thumbnail from a project's saved snapshot. Draws each
+// panel polygon plus small placeholder rectangles for user bubbles so
+// the tile reads as "this comic has stuff in it."
+function projectThumb(p) {
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const data = p.data || {};
+  const vw = data.viewW || 800, vh = data.viewH || 626;
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${vw} ${vh}`);
+  svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+  const bg = document.createElementNS(svgNS, 'rect');
+  bg.setAttribute('x', 0); bg.setAttribute('y', 0);
+  bg.setAttribute('width', vw); bg.setAttribute('height', vh);
+  bg.setAttribute('fill', '#faf1e5');
+  svg.appendChild(bg);
+  const verts = data.v || [];
+  const panels = data.panels || [];
+  panels.forEach(panel => {
+    const pts = panel.vs.map(vid => {
+      const v = verts[vid];
+      return v ? `${v.x},${v.y}` : '';
+    }).filter(Boolean).join(' ');
+    if (!pts) return;
+    const poly = document.createElementNS(svgNS, 'polygon');
+    poly.setAttribute('points', pts);
+    poly.setAttribute('fill', '#ffffff');
+    poly.setAttribute('stroke', '#1a1815');
+    poly.setAttribute('stroke-width', '10');
+    poly.setAttribute('stroke-linejoin', 'round');
+    svg.appendChild(poly);
+  });
+  // Draw pasted panel images if any (as filled rects colored by hashing the URL).
+  Object.entries(data.pi || {}).forEach(([pid, imgD]) => {
+    const panel = panels.find(pp => pp.id === pid);
+    if (!panel) return;
+    const xs = panel.vs.map(vid => verts[vid] && verts[vid].x).filter(v => v != null);
+    const ys = panel.vs.map(vid => verts[vid] && verts[vid].y).filter(v => v != null);
+    if (!xs.length) return;
+    const x1 = Math.min(...xs), x2 = Math.max(...xs);
+    const y1 = Math.min(...ys), y2 = Math.max(...ys);
+    const r = document.createElementNS(svgNS, 'rect');
+    r.setAttribute('x', x1 + 12); r.setAttribute('y', y1 + 12);
+    r.setAttribute('width', x2 - x1 - 24); r.setAttribute('height', y2 - y1 - 24);
+    r.setAttribute('fill', '#cec5b8');
+    r.setAttribute('opacity', '0.6');
+    svg.appendChild(r);
+  });
+  // User bubbles as small yellow dots.
+  (data.ub || []).forEach(b => {
+    if (b.type === 'image') return;
+    const dot = document.createElementNS(svgNS, 'rect');
+    dot.setAttribute('x', b.x); dot.setAttribute('y', b.y);
+    dot.setAttribute('width', b.w); dot.setAttribute('height', b.h);
+    dot.setAttribute('rx', 12); dot.setAttribute('ry', 12);
+    dot.setAttribute('fill', '#fdf23f');
+    dot.setAttribute('opacity', '0.7');
+    svg.appendChild(dot);
+  });
+  return svg;
+}
+
+function panelCount(p) {
+  return (p.data && p.data.panels && p.data.panels.length) || 0;
+}
+
+function render() {
+  const store = loadProjectsStore();
+  const grid = document.getElementById('project-grid');
+  const empty = document.getElementById('empty');
+  const count = document.getElementById('count-line');
+  grid.innerHTML = '';
+  const list = [...store.projects].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  count.textContent = list.length ? `${list.length} project${list.length === 1 ? '' : 's'}` : '—';
+  if (!list.length) {
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+  list.forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'card';
+
+    const thumb = document.createElement('div');
+    thumb.className = 'thumb';
+    thumb.appendChild(projectThumb(p));
+    thumb.addEventListener('click', () => openProject(p.id));
+    card.appendChild(thumb);
+
+    const body = document.createElement('div');
+    body.className = 'body';
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    const title = document.createElement('div');
+    title.className = 'title';
+    title.textContent = p.name || 'Untitled';
+    meta.appendChild(title);
+    const sub = document.createElement('div');
+    sub.className = 'subline';
+    sub.textContent = `${panelCount(p)} panels · ${relTime(p.updatedAt)}`;
+    meta.appendChild(sub);
+    body.appendChild(meta);
+
+    const rowActions = document.createElement('div');
+    rowActions.className = 'row-actions';
+    const openBtn = document.createElement('button');
+    openBtn.className = 'icon-btn';
+    openBtn.textContent = 'Open';
+    openBtn.addEventListener('click', (e) => { e.stopPropagation(); openProject(p.id); });
+    rowActions.appendChild(openBtn);
+    const renameBtn = document.createElement('button');
+    renameBtn.className = 'icon-btn';
+    renameBtn.textContent = 'Rename';
+    renameBtn.addEventListener('click', (e) => { e.stopPropagation(); renameProject(p.id); });
+    rowActions.appendChild(renameBtn);
+    const dupBtn = document.createElement('button');
+    dupBtn.className = 'icon-btn';
+    dupBtn.textContent = 'Duplicate';
+    dupBtn.addEventListener('click', (e) => { e.stopPropagation(); duplicateProject(p.id); });
+    rowActions.appendChild(dupBtn);
+    const delBtn = document.createElement('button');
+    delBtn.className = 'icon-btn danger';
+    delBtn.textContent = 'Delete';
+    delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteProject(p.id); });
+    rowActions.appendChild(delBtn);
+    body.appendChild(rowActions);
+    card.appendChild(body);
+
+    grid.appendChild(card);
+  });
+}
+
+function openProject(id) {
+  window.location.href = 'designs.html?project=' + encodeURIComponent(id);
+}
+
+function renameProject(id) {
+  const store = loadProjectsStore();
+  const p = store.projects.find(pp => pp.id === id);
+  if (!p) return;
+  const next = prompt('Rename project:', p.name || '');
+  if (next == null) return;
+  p.name = next.trim() || 'Untitled';
+  p.updatedAt = Date.now();
+  saveProjectsStore(store);
+  render();
+}
+
+function duplicateProject(id) {
+  const store = loadProjectsStore();
+  const p = store.projects.find(pp => pp.id === id);
+  if (!p) return;
+  const copy = JSON.parse(JSON.stringify(p));
+  copy.id = 'p_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+  copy.name = (p.name || 'Untitled') + ' · copy';
+  copy.updatedAt = Date.now();
+  store.projects.push(copy);
+  saveProjectsStore(store);
+  render();
+}
+
+function deleteProject(id) {
+  const store = loadProjectsStore();
+  const p = store.projects.find(pp => pp.id === id);
+  if (!p) return;
+  if (!confirm('Delete "' + (p.name || 'Untitled') + '"? This can\'t be undone.')) return;
+  store.projects = store.projects.filter(pp => pp.id !== id);
+  if (store.currentId === id) store.currentId = null;
+  saveProjectsStore(store);
+  render();
+}
+
+ProjectStore.init().then(render);
+</script>
+</body>
+</html>

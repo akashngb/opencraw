@@ -5,6 +5,7 @@
 <title>Comic Designs</title>
 <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Bungee&family=Comic+Neue:ital,wght@0,700;1,700&family=Permanent+Marker&family=Luckiest+Guy&family=Creepster&family=Rock+Salt&family=Modak&family=Titan+One&family=Sigmar&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="project-store.js"></script>
 <style>
   html, body {
     margin: 0; padding: 0; height: 100%; width: 100%;
@@ -114,44 +115,65 @@
     outline: none; min-width: 180px;
   }
   .creator input.text::placeholder { color: rgba(0,0,0,0.28); }
-  /* ---------------- Center stage (leaves room for both right sidebars) ---------------- */
+  /* ---------------- Center stage (sidebar overlays right when open) ---------------- */
   #center {
     position: absolute;
-    top: 0; left: 0; bottom: 0; right: 400px;
+    top: 0; left: 0; bottom: 0; right: 0;
     background: #14120f;
     display: flex; align-items: center; justify-content: center;
     overflow: hidden;
   }
 
-  /* ---------------- Style palette sidebar (right, sits left of font sidebar) ---------------- */
-  #style-sidebar {
+  /* Right-edge floating tool buttons (hamburger / help) */
+  .side-btn {
     position: fixed;
-    top: 0; right: 200px; bottom: 0;
-    width: 200px;
+    right: 232px;
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    background: rgba(26, 24, 21, 0.96);
+    border: 1px solid #302b26;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.45);
+    cursor: pointer;
+    z-index: 210;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #cec5b8;
+    padding: 0;
+    transition: right 0.24s ease, color 0.12s, border-color 0.12s;
+  }
+  .side-btn:hover { color: #fdf23f; border-color: #fdf23f; }
+  .side-btn svg { width: 18px; height: 18px; display: block; }
+  body.sidebar-collapsed .side-btn { right: 12px; }
+  #sidebar-toggle { top: 12px; }
+  #help-button    { top: 56px; }
+  body:not(.sidebar-collapsed) #sidebar-toggle .icon-menu { display: none; }
+  body.sidebar-collapsed #sidebar-toggle .icon-close { display: none; }
+
+  /* Collapsible right sidebar — houses style chips + save / export / reset */
+  #sidebar {
+    position: fixed;
+    top: 0; right: 0; bottom: 0;
+    width: 244px;
     background: #1a1815;
     border-left: 1px solid #302b26;
-    padding: 14px 10px 20px;
-    overflow-y: auto;
-    z-index: 100;
-    box-shadow: -2px 0 10px rgba(0,0,0,0.35);
+    box-shadow: -4px 0 16px rgba(0,0,0,0.4);
+    padding: 14px 12px;
     box-sizing: border-box;
+    overflow-y: auto;
+    z-index: 200;
     font-family: system-ui;
+    transition: transform 0.24s ease;
   }
-  #style-sidebar .ss-title {
-    font-size: 11px;
-    letter-spacing: 1.4px;
-    color: #78706a;
+  body.sidebar-collapsed #sidebar { transform: translateX(100%); }
+  .sb-title {
+    font-size: 12px; letter-spacing: 2px; font-weight: 600;
     text-transform: uppercase;
-    padding: 0 4px 4px;
+    color: #78706a;
+    margin: 14px 4px 6px;
   }
-  #style-sidebar .ss-hint {
-    font-size: 10px;
-    color: #52493f;
-    padding: 0 4px 10px;
-    line-height: 1.35;
-    border-bottom: 1px solid #2a2620;
-    margin-bottom: 10px;
-  }
+  .sb-title:first-child { margin-top: 0; }
+
   #style-chips {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -182,58 +204,21 @@
     background: #14120f;
   }
   .style-chip .sc-name {
-    font-size: 9px;
+    font-size: 11px;
     color: #cec5b8;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-top: 3px;
+    letter-spacing: 0.4px;
+    margin-top: 4px;
     text-align: center;
     font-weight: 600;
-    line-height: 1.1;
+    line-height: 1.15;
   }
 
-  /* ---------------- Font sidebar (right, always visible) ---------------- */
-  #font-sidebar {
-    position: fixed;
-    top: 0; right: 0; bottom: 0;
-    width: 200px;
-    background: #1a1815;
-    border-left: 1px solid #302b26;
-    padding: 18px 0 20px;
-    overflow-y: auto;
-    z-index: 100;
-    box-shadow: -2px 0 10px rgba(0,0,0,0.35);
-  }
-  #font-sidebar .fs-title {
-    padding: 0 16px 12px;
-    font-family: system-ui;
-    font-size: 11px;
-    letter-spacing: 1.4px;
-    color: #78706a;
-    text-transform: uppercase;
-    border-bottom: 1px solid #2a2620;
-    margin-bottom: 4px;
-  }
-  #font-sidebar .fs-item {
-    padding: 14px 18px;
-    cursor: pointer;
-    font-size: 22px;
-    color: #cec5b8;
-    border-bottom: 1px solid #23201c;
-    line-height: 1;
-    transition: background 0.1s, color 0.1s;
-  }
-  #font-sidebar .fs-item:hover { background: #2a2620; color: #fff; }
-  #font-sidebar .fs-item.active {
-    background: #2f2a24;
-    color: #fdf23f;
-    border-left: 3px solid #fdf23f;
-    padding-left: 15px;
-  }
-  #font-sidebar .fs-btn {
+  /* Sidebar action buttons */
+  .fs-btn {
     display: block;
-    width: calc(100% - 24px);
-    margin: 4px 12px;
+    width: 100%;
+    margin: 4px 0;
     padding: 10px 12px;
     background: #2a2620;
     color: #fdf23f;
@@ -241,26 +226,186 @@
     border-radius: 4px;
     cursor: pointer;
     text-align: center;
-    font-size: 11px;
-    letter-spacing: 0.8px;
+    font-size: 12.5px;
+    letter-spacing: 0.6px;
     text-transform: uppercase;
     font-weight: 600;
     font-family: system-ui;
   }
-  #font-sidebar .fs-btn:hover { background: #fdf23f; color: #201d1a; border-color: #fdf23f; }
-  #font-sidebar .fs-btn.danger { color: #ff6b57; border-color: #4a3630; }
-  #font-sidebar .fs-btn.danger:hover { background: #ff6b57; color: #fff; border-color: #ff6b57; }
-  #font-sidebar .fs-status {
+  .fs-btn:hover { background: #fdf23f; color: #201d1a; border-color: #fdf23f; }
+  .fs-btn.danger { color: #ff6b57; border-color: #4a3630; }
+  .fs-btn.danger:hover { background: #ff6b57; color: #fff; border-color: #ff6b57; }
+
+  /* Project name input in sidebar */
+  .fs-input {
+    display: block;
+    width: 100%;
+    margin: 4px 0 8px;
+    padding: 9px 10px;
+    background: #14120f;
+    color: #e8e4d8;
+    border: 1px solid #302b26;
+    border-radius: 4px;
+    outline: none;
     font-family: system-ui;
-    font-size: 10px;
-    color: #78706a;
-    text-align: center;
-    padding: 4px 12px 8px;
+    font-size: 13px;
+    box-sizing: border-box;
   }
+  .fs-input:focus { border-color: #fdf23f; }
+
+  /* Help modal */
+  #help-modal {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.55);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 300;
+  }
+  #help-modal.open { display: flex; }
+  #help-modal .card {
+    position: relative;
+    background: #1a1815;
+    color: #cec5b8;
+    border: 1px solid #302b26;
+    max-width: 460px;
+    width: calc(100% - 48px);
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 22px 26px 20px;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.55);
+    font-family: system-ui;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  #help-modal h2 {
+    margin: 0 0 6px;
+    font-size: 15px;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: #cec5b8;
+  }
+  #help-modal h3 {
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #78706a;
+    margin: 14px 0 6px;
+  }
+  #help-modal kbd {
+    background: #2a2620;
+    border: 1px solid #4a4238;
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 11.5px;
+    color: #fdf23f;
+  }
+  #help-modal ul { margin: 0; padding-left: 18px; }
+  #help-modal li { margin: 3px 0; }
+  #help-modal .close-x {
+    position: absolute;
+    top: 10px; right: 12px;
+    background: transparent; border: 0;
+    font-size: 20px; cursor: pointer; color: #78706a;
+    padding: 4px 8px; border-radius: 6px;
+  }
+  #help-modal .close-x:hover { color: #cec5b8; background: rgba(255,255,255,0.05); }
+
+  /* Layout picker modal — shown on New Project + on first load */
+  #layout-modal {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.72);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 320;
+  }
+  #layout-modal.open { display: flex; }
+  #layout-modal .card {
+    position: relative;
+    background: #1a1815;
+    color: #cec5b8;
+    border: 1px solid #302b26;
+    max-width: 720px;
+    width: calc(100% - 48px);
+    max-height: 84vh;
+    overflow-y: auto;
+    padding: 26px 30px 24px;
+    border-radius: 14px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.65);
+    font-family: system-ui;
+  }
+  #layout-modal h2 {
+    margin: 0 0 6px;
+    font-size: 17px;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: #cec5b8;
+  }
+  #layout-modal .layout-sub {
+    margin: 0 0 20px;
+    font-size: 12px;
+    color: #78706a;
+    line-height: 1.55;
+  }
+  #layout-modal .close-x {
+    position: absolute;
+    top: 12px; right: 14px;
+    background: transparent; border: 0;
+    font-size: 22px; cursor: pointer; color: #78706a;
+    padding: 4px 10px; border-radius: 6px;
+  }
+  #layout-modal .close-x:hover { color: #cec5b8; background: rgba(255,255,255,0.05); }
+  #layout-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 14px;
+  }
+  .layout-tile {
+    background: #23201c;
+    border: 1px solid #302b26;
+    border-radius: 8px;
+    padding: 10px;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s, transform 0.08s;
+    display: flex;
+    flex-direction: column;
+  }
+  .layout-tile:hover {
+    background: #2f2a24;
+    border-color: #fdf23f;
+    transform: translateY(-2px);
+  }
+  .layout-tile svg {
+    width: 100%;
+    height: 110px;
+    display: block;
+    background: #14120f;
+    border-radius: 4px;
+  }
+  .layout-tile .lt-name {
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: #fdf23f;
+    margin-top: 10px;
+    font-weight: 600;
+  }
+  .layout-tile .lt-desc {
+    font-size: 11px;
+    color: #78706a;
+    margin-top: 4px;
+    line-height: 1.45;
+  }
+
   #stage-wrap {
     position: relative;
-    width: 800px; height: 626px;
+    /* Width/height set inline by JS to VIEW_W/VIEW_H so different layouts
+       (and mid-project row additions) render at their own aspect. */
     transform-origin: center center;
+    flex-shrink: 0;   /* never let the flex parent squash the page */
   }
   #stage {
     position: absolute; inset: 0;
@@ -302,6 +447,99 @@
   }
   .vhandle:hover::after { opacity: 1; }
   .vhandle.dragging::after { opacity: 1; background: #ff3b30; width: 8px; height: 8px; }
+
+  /* Row-height drag handles — full-width horizontal strips sitting on top
+     of each internal row divider. Dragging one moves every vertex on that
+     row by the same dy, so the whole row grows / shrinks together. */
+  .hhandle {
+    position: absolute;
+    left: 0; right: 0;
+    height: 14px;
+    transform: translateY(-50%);
+    cursor: ns-resize;
+    z-index: 9;             /* Below .vhandle so shared corners still slide horizontally. */
+    pointer-events: auto;
+    background: transparent;
+  }
+  .hhandle::after {
+    content: '';
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: 44px; height: 4px;
+    border-radius: 3px;
+    background: rgba(74,144,226,0.6);
+    opacity: 0;
+    transition: opacity 0.15s;
+    pointer-events: none;
+  }
+  .hhandle:hover::after { opacity: 1; }
+  .hhandle.dragging::after { opacity: 1; background: #ff3b30; }
+
+  /* Outer-edge resize handles — one strip per side of the page. Drag to
+     grow/shrink the canvas; click to select, then arrow keys nudge it.
+     --ui-scale (set in fitStage) cancels the stage's CSS scale so the
+     strips and the size label stay a constant on-screen size. */
+  #edge-layer { position: absolute; inset: 0; pointer-events: none; z-index: 20; }
+  .ehandle {
+    position: absolute;
+    pointer-events: auto;
+    background: transparent;
+    outline: none;
+  }
+  .ehandle.top, .ehandle.bottom {
+    left: 0; right: 0;
+    height: calc(12px * var(--ui-scale, 1));
+    cursor: ns-resize;
+  }
+  .ehandle.left, .ehandle.right {
+    top: 0; bottom: 0;
+    width: calc(12px * var(--ui-scale, 1));
+    cursor: ew-resize;
+  }
+  .ehandle.top    { top: 0;    transform: translateY(-50%); }
+  .ehandle.bottom { bottom: 0; transform: translateY(50%); }
+  .ehandle.left   { left: 0;   transform: translateX(-50%); }
+  .ehandle.right  { right: 0;  transform: translateX(50%); }
+  .ehandle::after {
+    content: '';
+    position: absolute;
+    background: #4a90e2;
+    opacity: 0;
+    transition: opacity 0.15s;
+    pointer-events: none;
+  }
+  .ehandle.top::after, .ehandle.bottom::after {
+    left: 0; right: 0; top: 50%;
+    height: calc(3px * var(--ui-scale, 1));
+    transform: translateY(-50%);
+  }
+  .ehandle.left::after, .ehandle.right::after {
+    top: 0; bottom: 0; left: 50%;
+    width: calc(3px * var(--ui-scale, 1));
+    transform: translateX(-50%);
+  }
+  .ehandle:hover::after { opacity: 0.6; }
+  .ehandle.selected::after { opacity: 1; }
+  .ehandle.dragging::after { opacity: 1; background: #ff3b30; }
+
+  #dims-label {
+    position: absolute;
+    left: 50%; top: 100%;
+    transform: translateX(-50%) scale(var(--ui-scale, 1));
+    transform-origin: top center;
+    margin-top: calc(10px * var(--ui-scale, 1));
+    padding: 3px 9px;
+    border-radius: 4px;
+    background: rgba(26, 24, 21, 0.9);
+    color: #78706a;
+    font: 600 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    pointer-events: none;
+    transition: color 0.15s;
+  }
+  #dims-label.active { color: #fdf23f; }
 
   /* Panel selection highlight (SVG stroke handled separately) */
 
@@ -371,7 +609,7 @@
   #toast.show { opacity: 1; }
 </style>
 </head>
-<body>
+<body class="sidebar-collapsed">
 
 <div id="app">
   <div id="center">
@@ -381,24 +619,96 @@
         <div id="handle-layer"></div>
         <div id="bubble-layer"></div>
       </div>
+      <div id="edge-layer">
+        <div class="ehandle top"    data-side="top"    tabindex="-1" title="Drag to resize · click + arrow keys to nudge"></div>
+        <div class="ehandle right"  data-side="right"  tabindex="-1" title="Drag to resize · click + arrow keys to nudge"></div>
+        <div class="ehandle bottom" data-side="bottom" tabindex="-1" title="Drag to resize · click + arrow keys to nudge"></div>
+        <div class="ehandle left"   data-side="left"   tabindex="-1" title="Drag to resize · click + arrow keys to nudge"></div>
+      </div>
+      <div id="dims-label"></div>
     </div>
   </div>
-  <div id="style-sidebar">
-    <div class="ss-title">Styles</div>
-    <div class="ss-hint">Click to add · Paste (⌘V) any image · ⌘+/− resize text</div>
-    <div id="style-chips"></div>
+</div>
+
+<button id="sidebar-toggle" class="side-btn" aria-label="Toggle sidebar">
+  <svg class="icon-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <line x1="4" y1="7" x2="20" y2="7"/>
+    <line x1="4" y1="12" x2="20" y2="12"/>
+    <line x1="4" y1="17" x2="20" y2="17"/>
+  </svg>
+  <svg class="icon-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="9 6 15 12 9 18"/>
+  </svg>
+</button>
+
+<button id="help-button" class="side-btn" aria-label="Show help" title="Show help">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="9"/>
+    <path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.9.4-1.5 1-1.5 1.9V14"/>
+    <line x1="12" y1="17" x2="12" y2="17.5"/>
+  </svg>
+</button>
+
+<div id="layout-modal">
+  <div class="card">
+    <button class="close-x" aria-label="Close">×</button>
+    <h2>Pick a layout</h2>
+    <p class="layout-sub">Every layout is a starting mesh — you can drag dividers, resize rows, add more rows, and split panels once you're inside.</p>
+    <div id="layout-grid"></div>
   </div>
-  <div id="font-sidebar">
-    <div class="fs-title">Save</div>
-    <button class="fs-btn" id="save-project">↓ Save project.json</button>
-    <button class="fs-btn" id="load-project">↑ Load project.json</button>
-    <input type="file" id="load-file" accept=".json" style="display:none">
-    <div class="fs-title" style="margin-top:6px">Export</div>
-    <button class="fs-btn" id="export-a4">↓ Export A4 PDF</button>
-    <button class="fs-btn" id="export-a3">↓ Export A3 PDF</button>
-    <div class="fs-title" style="margin-top:6px">Reset</div>
-    <button class="fs-btn danger" id="reset-text">Wipe text · keep images</button>
+</div>
+
+<div id="help-modal">
+  <div class="card">
+    <button class="close-x" aria-label="Close">×</button>
+    <h2>Comic Designs</h2>
+    <h3>Canvas</h3>
+    <ul>
+      <li><kbd>Double-click</kbd> anywhere to open a text creator; press <kbd>Enter</kbd> to place.</li>
+      <li>Paste (<kbd>⌘V</kbd>) images to drop them onto the stage.</li>
+      <li>Drag panel dividers to resize the mesh.</li>
+    </ul>
+    <h3>Bubbles</h3>
+    <ul>
+      <li>Click a style chip in the sidebar to add that bubble to the stage.</li>
+      <li>Double-click any placed bubble to edit its text.</li>
+      <li>Drag to move; corner handles resize once selected.</li>
+    </ul>
+    <h3>Save &amp; export</h3>
+    <ul>
+      <li><kbd>Save project.json</kbd> downloads the whole board; <kbd>Load</kbd> restores it.</li>
+      <li><kbd>Slice to A4 / A3</kbd> tiles the tall board into printable PDF pages.</li>
+      <li><kbd>Wipe text · keep images</kbd> clears all text bubbles but leaves image panels.</li>
+    </ul>
   </div>
+</div>
+
+<div id="sidebar">
+  <div class="sb-title" id="project-title-label">Project</div>
+  <input id="project-name-input" class="fs-input" type="text" placeholder="Untitled" />
+  <button class="fs-btn" id="new-project">＋ New Project</button>
+  <button class="fs-btn" id="open-projects">☰ All Projects…</button>
+
+  <div class="sb-title">Layout</div>
+  <button class="fs-btn" id="add-row">＋ Add Row Below</button>
+  <button class="fs-btn" id="split-panel-v">⇋ Split Panel · Vertical</button>
+  <button class="fs-btn" id="split-panel-h">⇅ Split Panel · Horizontal</button>
+  <button class="fs-btn" id="change-layout">↻ Change Layout…</button>
+
+  <div class="sb-title">Styles</div>
+  <div id="style-chips"></div>
+
+  <div class="sb-title">File</div>
+  <button class="fs-btn" id="save-project">↓ Export project.json</button>
+  <button class="fs-btn" id="load-project">↑ Import project.json</button>
+  <input type="file" id="load-file" accept=".json" style="display:none">
+
+  <div class="sb-title">Export</div>
+  <button class="fs-btn" id="export-a4">↓ Slice to A4</button>
+  <button class="fs-btn" id="export-a3">↓ Slice to A3</button>
+
+  <div class="sb-title">Reset</div>
+  <button class="fs-btn danger" id="reset-text">Wipe text · keep images</button>
 </div>
 
 <div id="toast"></div>
@@ -1348,7 +1658,9 @@ function setupCanvas(canvas, w, h) {
 // makes the "drag one corner, neighbors follow" mesh work.
 
 // viewBox chosen to match panels.png aspect (1402:1122 ≈ 5:4).
-const VIEW_W = 800, VIEW_H = 626;
+// Mutable so different layouts can pick their own canvas size (rows can be
+// added mid-project, which extends VIEW_H).
+let VIEW_W = 800, VIEW_H = 626;
 
 // Vertex table + panel polygons derived by pixel-sampling panels.png:
 //   - Outer frame:      x∈[31..1369], y∈[37..1084]  →  scaled to 800×626
@@ -1386,7 +1698,10 @@ const initialVertices = [
   { x: 800, y: 626, edge: 'corner-br' },  // 21
 ];
 
-const VERTEX_ROW = [
+// Mutable so layouts can define their own row groupings. Kept as a global
+// (rather than state field) to keep hot paths simple. Rewritten by
+// applyLayout().
+let VERTEX_ROW = [
   0,0,0,
   1,1,1,1,1,
   2,2,2,2,2,
@@ -1418,6 +1733,14 @@ const initialPanels = [
 // =====================================================================
 
 const state = {
+  // Identifies which layout template the mesh came from. The 'roommate'
+  // key preserves the original Don-Passive comic; any other key gives a
+  // blank canvas with no pre-placed BUBBLE_TEMPLATES.
+  layoutKey: 'roommate',
+  // Project id + name (multi-project persistence). Null projectId means
+  // this is a brand-new project that hasn't been saved yet.
+  projectId: null,
+  projectName: 'Untitled',
   vertices: initialVertices.map(v => ({ ...v })),
   panels:   initialPanels.map((p, i) => ({ id: 'p' + i, vs: [...p.vs] })),
   panelImages: {},           // panelId -> { url, scale, ox, oy }
@@ -1427,7 +1750,141 @@ const state = {
   bubbles: [],
   selectedBubbleId: null,
   nextBubbleId: 1,
+  nextPanelId: 10,
 };
+
+// =====================================================================
+//  LAYOUTS — a catalog of starting mesh templates
+// =====================================================================
+//
+// Each layout supplies viewW/viewH, a flat vertices[] array, a panels[]
+// array of vertex-id polygons, and a parallel vertexRow[] identifying
+// which horizontal row each vertex sits on (needed so the row-height
+// drag handles can move whole rows at once).
+//
+// The 'roommate' layout mirrors the original 10-panel Don-Passive comic.
+// The others are simple rectangular grids / strips for fresh starts.
+//
+// Note: `edge` labels on vertices ('corner-tl' … 'right') follow the
+// convention used by the original mesh — verts on 'left'/'right' are
+// vertically fixed, corner verts don't move at all.
+
+function makeGridLayout(rows, cols, viewW = 800, viewH = 626) {
+  const vertices = [];
+  const vertexRow = [];
+  for (let r = 0; r <= rows; r++) {
+    for (let c = 0; c <= cols; c++) {
+      const x = (c * viewW) / cols;
+      const y = (r * viewH) / rows;
+      let edge = null;
+      if (r === 0 && c === 0) edge = 'corner-tl';
+      else if (r === 0 && c === cols) edge = 'corner-tr';
+      else if (r === rows && c === 0) edge = 'corner-bl';
+      else if (r === rows && c === cols) edge = 'corner-br';
+      else if (r === 0) edge = 'top';
+      else if (r === rows) edge = 'bottom';
+      else if (c === 0) edge = 'left';
+      else if (c === cols) edge = 'right';
+      vertices.push({ x, y, edge });
+      vertexRow.push(r);
+    }
+  }
+  const panels = [];
+  const idx = (r, c) => r * (cols + 1) + c;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      panels.push({ vs: [idx(r, c), idx(r, c + 1), idx(r + 1, c + 1), idx(r + 1, c)] });
+    }
+  }
+  return { viewW, viewH, vertices, panels, vertexRow };
+}
+
+// Roommate layout is the original mesh (kept as the default).
+const ROOMMATE_LAYOUT = {
+  viewW: 800, viewH: 626,
+  vertices: initialVertices.map(v => ({ ...v })),
+  panels:   initialPanels.map(p => ({ vs: [...p.vs] })),
+  vertexRow: [0,0,0, 1,1,1,1,1, 2,2,2,2,2, 3,3,3,3,3, 4,4,4,4],
+};
+
+// Splash: one tall panel across the top, then a 2×2 grid.
+const SPLASH_LAYOUT = (() => {
+  const viewW = 800, viewH = 626;
+  const yTop = 0, yMid = 260, yBot = 626;
+  const yGridMid = (yMid + yBot) / 2;
+  const vertices = [
+    { x: 0,       y: yTop,     edge: 'corner-tl' },   // 0
+    { x: viewW,   y: yTop,     edge: 'corner-tr' },   // 1
+    { x: 0,       y: yMid,     edge: 'left'       },  // 2
+    { x: viewW/2, y: yMid,     edge: null         },  // 3
+    { x: viewW,   y: yMid,     edge: 'right'      },  // 4
+    { x: 0,       y: yGridMid, edge: 'left'       },  // 5
+    { x: viewW/2, y: yGridMid, edge: null         },  // 6
+    { x: viewW,   y: yGridMid, edge: 'right'      },  // 7
+    { x: 0,       y: yBot,     edge: 'corner-bl'  },  // 8
+    { x: viewW/2, y: yBot,     edge: 'bottom'     },  // 9
+    { x: viewW,   y: yBot,     edge: 'corner-br'  },  // 10
+  ];
+  const vertexRow = [0,0, 1,1,1, 2,2,2, 3,3,3];
+  const panels = [
+    { vs: [0, 1, 4, 3, 2] },   // splash top
+    { vs: [2, 3, 6, 5] },      // mid-left
+    { vs: [3, 4, 7, 6] },      // mid-right
+    { vs: [5, 6, 9, 8] },      // bot-left
+    { vs: [6, 7, 10, 9] },     // bot-right
+  ];
+  return { viewW, viewH, vertices, panels, vertexRow };
+})();
+
+const LAYOUTS = {
+  roommate:  { name: 'Roommate Etiquette', desc: 'Original 10-panel layout with pre-placed bubbles', build: () => ({ ...cloneLayout(ROOMMATE_LAYOUT) }) },
+  blank:     { name: 'Single Panel',       desc: 'One big empty panel — perfect for a splash page',   build: () => makeGridLayout(1, 1) },
+  strip3:    { name: 'Strip · 3',          desc: '3 horizontal panels in one row',                    build: () => makeGridLayout(1, 3) },
+  strip4:    { name: 'Strip · 4',          desc: '4 horizontal panels in one row',                    build: () => makeGridLayout(1, 4) },
+  grid2x2:   { name: 'Grid · 2×2',         desc: '4 equal panels in a 2×2 grid',                      build: () => makeGridLayout(2, 2) },
+  grid3x2:   { name: 'Grid · 3×2',         desc: '6 panels — 3 columns, 2 rows',                      build: () => makeGridLayout(2, 3) },
+  grid3x3:   { name: 'Grid · 3×3',         desc: '9 panels in a full 3×3 grid',                       build: () => makeGridLayout(3, 3) },
+  grid4x3:   { name: 'Grid · 4×3',         desc: '12 panels — 3 columns, 4 rows (tall)',              build: () => { const l = makeGridLayout(4, 3); l.viewH = 900; l.vertices.forEach((v,i) => { v.y = v.y * (900/626); }); return l; } },
+  splash:    { name: 'Splash + Grid',      desc: 'One tall splash panel, then a 2×2 grid below',      build: () => cloneLayout(SPLASH_LAYOUT) },
+};
+
+function cloneLayout(l) {
+  return {
+    viewW: l.viewW, viewH: l.viewH,
+    vertices: l.vertices.map(v => ({ ...v })),
+    panels:   l.panels.map(p => ({ vs: [...p.vs] })),
+    vertexRow: [...l.vertexRow],
+  };
+}
+
+// Apply a layout template to state — wipes vertices/panels/panel-images/
+// bubble-overrides so the fresh mesh is a clean slate. User-added bubbles
+// are preserved by default (pass wipeBubbles=true to clear those too).
+function applyLayout(layoutKey, opts = {}) {
+  const spec = LAYOUTS[layoutKey];
+  if (!spec) { console.warn('unknown layout', layoutKey); return; }
+  const l = spec.build();
+  VIEW_W = l.viewW;
+  VIEW_H = l.viewH;
+  VERTEX_ROW = l.vertexRow.slice();
+  state.layoutKey = layoutKey;
+  state.vertices = l.vertices.map(v => ({ ...v }));
+  state.panels   = l.panels.map((p, i) => ({ id: 'p' + i, vs: [...p.vs] }));
+  state.nextPanelId = state.panels.length;
+  state.panelImages = {};
+  state.bubbleOverrides = {};
+  state.selectedPanelId = null;
+  state.selectedTemplateId = null;
+  if (opts.wipeBubbles) {
+    state.bubbles.forEach(b => b.el && b.el.remove());
+    state.bubbles = [];
+    state.selectedBubbleId = null;
+  }
+  applyViewportSize();
+  renderPanels();
+  renderHandles();
+  fitStage();
+}
 
 // =====================================================================
 //  RENDER — SVG panels
@@ -1594,11 +2051,15 @@ function renderPanels() {
     svg.appendChild(sel);
   });
 
-  // Pre-placed SVG bubbles (with any user overrides applied, skipping deleted)
-  BUBBLE_TEMPLATES.forEach(t => {
-    if (isTemplateDeleted(t)) return;
-    appendSvgBubble(svg, resolveTemplate(t));
-  });
+  // Pre-placed SVG bubbles (with any user overrides applied, skipping deleted).
+  // Only the original 'roommate' layout ships with pre-placed bubbles — other
+  // layouts start with a blank canvas so the user can lay out their own comic.
+  if (state.layoutKey === 'roommate') {
+    BUBBLE_TEMPLATES.forEach(t => {
+      if (isTemplateDeleted(t)) return;
+      appendSvgBubble(svg, resolveTemplate(t));
+    });
+  }
 }
 
 // Redraw polygon points — cheap enough to run every drag frame.
@@ -2173,8 +2634,8 @@ const handleLayer = document.getElementById('handle-layer');
 
 function renderHandles() {
   handleLayer.innerHTML = '';
+  // Vertex handles (X drag) — skip corners and left/right edge verts.
   state.vertices.forEach((v, id) => {
-    // Skip pinned corners AND left/right edge verts (no horizontal freedom).
     if (v.edge && (v.edge.startsWith('corner') || v.edge === 'left' || v.edge === 'right')) return;
     const h = document.createElement('div');
     h.className = 'vhandle';
@@ -2184,6 +2645,28 @@ function renderHandles() {
     h.addEventListener('mousedown', (e) => startVertexDrag(e, id, h));
     handleLayer.appendChild(h);
   });
+
+  // Row handles (Y drag) — one per internal row (skip top and bottom edges).
+  // A row is identified by its VERTEX_ROW group index; the row's Y is the
+  // shared y of its member vertices.
+  const rowGroups = new Map();     // rowIdx -> [vertexId, …]
+  VERTEX_ROW.forEach((r, vid) => {
+    if (!rowGroups.has(r)) rowGroups.set(r, []);
+    rowGroups.get(r).push(vid);
+  });
+  const rowsSorted = [...rowGroups.keys()].sort((a, b) => a - b);
+  // First (top) and last (bottom) rows are edge rows — no height drag.
+  for (let i = 1; i < rowsSorted.length - 1; i++) {
+    const rowIdx = rowsSorted[i];
+    const memberIds = rowGroups.get(rowIdx);
+    const rowY = state.vertices[memberIds[0]].y;
+    const h = document.createElement('div');
+    h.className = 'hhandle';
+    h.style.top = (rowY / VIEW_H * 100) + '%';
+    h.dataset.row = rowIdx;
+    h.addEventListener('mousedown', (e) => startRowDrag(e, rowIdx, h));
+    handleLayer.appendChild(h);
+  }
 }
 
 function updateHandlePositions() {
@@ -2191,6 +2674,12 @@ function updateHandlePositions() {
     const v = state.vertices[+h.dataset.vid];
     h.style.left = (v.x / VIEW_W * 100) + '%';
     h.style.top  = (v.y / VIEW_H * 100) + '%';
+  });
+  handleLayer.querySelectorAll('.hhandle').forEach(h => {
+    const rowIdx = +h.dataset.row;
+    const firstVid = VERTEX_ROW.indexOf(rowIdx);
+    if (firstVid < 0) return;
+    h.style.top = (state.vertices[firstVid].y / VIEW_H * 100) + '%';
   });
 }
 
@@ -2243,6 +2732,56 @@ function startVertexDrag(e, vid, handleEl) {
   window.addEventListener('mouseup', onUp);
 }
 
+// Drag an entire row up/down. Every vertex tagged with `rowIdx` in
+// VERTEX_ROW moves by the same dy, so all panels in the rows immediately
+// above and below the divider are resized together. Clamped between the
+// two neighbouring row Y positions with a small pad so panels don't
+// collapse to zero height.
+function startRowDrag(e, rowIdx, handleEl) {
+  e.preventDefault();
+  e.stopPropagation();
+  const memberIds = [];
+  VERTEX_ROW.forEach((r, vid) => { if (r === rowIdx) memberIds.push(vid); });
+  if (!memberIds.length) return;
+  const origY = state.vertices[memberIds[0]].y;
+  const origPerVertexY = memberIds.map(vid => state.vertices[vid].y);
+  const startClientY = e.clientY;
+  handleEl.classList.add('dragging');
+  document.body.style.cursor = 'ns-resize';
+
+  // Find the Y of the row immediately above and immediately below this one
+  // by scanning every vertex outside this row.
+  let aboveY = 0, belowY = VIEW_H;
+  state.vertices.forEach((v, vid) => {
+    if (VERTEX_ROW[vid] === rowIdx) return;
+    if (v.y < origY && v.y > aboveY) aboveY = v.y;
+    if (v.y > origY && v.y < belowY) belowY = v.y;
+  });
+  const CLAMP_PAD = 30;
+
+  function onMove(ev) {
+    const stg = stagePixelSize();
+    const dyWorld = (ev.clientY - startClientY) * (VIEW_H / stg.h);
+    let ny = origY + dyWorld;
+    ny = Math.max(aboveY + CLAMP_PAD, Math.min(belowY - CLAMP_PAD, ny));
+    const dy = ny - origY;
+    memberIds.forEach((vid, i) => {
+      state.vertices[vid].y = origPerVertexY[i] + dy;
+    });
+    updatePanelGeometry();
+    updateHandlePositions();
+  }
+  function onUp() {
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onUp);
+    handleEl.classList.remove('dragging');
+    document.body.style.cursor = '';
+    saveState();
+  }
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+}
+
 // =====================================================================
 //  PANEL SELECTION + IMAGE PASTE
 // =====================================================================
@@ -2257,6 +2796,7 @@ function selectPanel(panelId) {
 
 function deselectAll() {
   state.selectedPanelId = null;
+  if (selectedEdge) selectEdge(null);
   svg.querySelectorAll('polygon[data-panel-stroke]').forEach(n => {
     n.setAttribute('stroke', 'rgba(0,0,0,0)');
   });
@@ -2461,7 +3001,9 @@ document.getElementById('app').addEventListener('dblclick', (e) => {
       e.target.closest('.svg-bubble') ||    // pre-placed SVG bubbles
       e.target.closest('.creator')    ||
       e.target.closest('.tpl-editor') ||
-      e.target.closest('#font-sidebar')) return;
+      e.target.closest('#sidebar') ||
+      e.target.closest('#help-modal') ||
+      e.target.closest('.side-btn')) return;
   const rect = stageEl.getBoundingClientRect();
   const wx = (e.clientX - rect.left) * (VIEW_W / rect.width);
   const wy = (e.clientY - rect.top)  * (VIEW_H / rect.height);
@@ -2873,19 +3415,219 @@ document.addEventListener('keydown', (e) => {
 const stageWrap = document.getElementById('stage-wrap');
 const centerCol = document.getElementById('center');
 
+// Sync #stage-wrap DOM size + SVG viewBox with the current VIEW_W/VIEW_H.
+// Called whenever the layout changes (new layout picked, row added).
+function applyViewportSize() {
+  stageWrap.style.width  = VIEW_W + 'px';
+  stageWrap.style.height = VIEW_H + 'px';
+  svg.setAttribute('viewBox', `0 0 ${VIEW_W} ${VIEW_H}`);
+  updateDimsLabel();
+}
+
+// Current CSS scale of #stage-wrap. Frozen while an edge is being dragged so
+// the page doesn't rescale under the cursor; fitStage runs again on release.
+let stageScale = 1;
+let edgeDragActive = false;
+
 function fitStage() {
+  if (edgeDragActive) return;
   const rect = centerCol.getBoundingClientRect();
   const pad = 40;
   const availW = rect.width - pad * 2;
-  const availH = rect.height - pad * 2;
+  const availH = rect.height - pad * 2 - 30;   // room for the size label
   const scale = Math.min(availW / VIEW_W, availH / VIEW_H, 1.5);
+  stageScale = scale;
   stageWrap.style.transform = `scale(${scale})`;
+  stageWrap.style.setProperty('--ui-scale', 1 / scale);
   // After scale change, bubbles need repositioning because their
   // pixel positions are based on the pre-transform stage size.
   // Since the transform applies to the whole wrap, everything inside
   // stays in the same coord space — no reposition needed. ✓
 }
 new ResizeObserver(fitStage).observe(centerCol);
+
+// =====================================================================
+//  PAGE EDGE RESIZE — drag an outer edge, or select it + arrow keys
+// =====================================================================
+//
+// Right/bottom edges just move their boundary vertices. Left/top edges
+// grow the canvas on that side: every vertex not on the edge, plus all
+// bubbles, shift by the same amount so only the outermost panels change
+// size. Panel images are stored relative to their panel's bbox, so they
+// follow automatically.
+
+const EDGE_MIN_PANEL = 30;    // smallest outer panel thickness (world units)
+const EDGE_MAX_SIZE  = 6000;  // sanity cap on canvas width/height
+const EDGE_EPS = 1;
+const dimsLabel = document.getElementById('dims-label');
+let selectedEdge = null;
+
+function updateDimsLabel() {
+  dimsLabel.textContent = `${Math.round(VIEW_W)} × ${Math.round(VIEW_H)}`;
+}
+
+// Vertex ids on a given outer side, judged by position (edge tags aren't
+// kept perfectly in sync after splits/row adds).
+function edgeVertexIds(side) {
+  const ids = [];
+  state.vertices.forEach((v, i) => {
+    if ((side === 'left'   && Math.abs(v.x) < EDGE_EPS) ||
+        (side === 'right'  && Math.abs(v.x - VIEW_W) < EDGE_EPS) ||
+        (side === 'top'    && Math.abs(v.y) < EDGE_EPS) ||
+        (side === 'bottom' && Math.abs(v.y - VIEW_H) < EDGE_EPS)) ids.push(i);
+  });
+  return ids;
+}
+
+// Allowed range for `delta` (positive = edge moves outward).
+function edgeDeltaRange(side) {
+  const horiz = side === 'left' || side === 'right';
+  const onEdge = new Set(edgeVertexIds(side));
+  const size = horiz ? VIEW_W : VIEW_H;
+  let inner = Infinity;   // distance from this edge to the nearest interior vertex
+  state.vertices.forEach((v, i) => {
+    if (onEdge.has(i)) return;
+    const c = horiz ? v.x : v.y;
+    const d = (side === 'left' || side === 'top') ? c : size - c;
+    if (d > EDGE_EPS) inner = Math.min(inner, d);
+  });
+  if (!isFinite(inner)) inner = size;
+  return { min: -(inner - EDGE_MIN_PANEL), max: EDGE_MAX_SIZE - size };
+}
+
+// Move `side` outward by `delta` world units, relative to a baseline
+// snapshot (so drags don't accumulate rounding). Returns the applied delta.
+function edgeSnapshot(side) {
+  return {
+    side,
+    w: VIEW_W, h: VIEW_H,
+    edgeIds: edgeVertexIds(side),
+    verts: state.vertices.map(v => ({ x: v.x, y: v.y })),
+    bubbles: state.bubbles.map(b => ({ b, x: b.x, y: b.y })),
+    tpl: state.layoutKey === 'roommate'
+      ? BUBBLE_TEMPLATES.map(t => { const r = resolveTemplate(t); return { id: t.id, cx: r.cx, cy: r.cy }; })
+      : [],
+    range: edgeDeltaRange(side),
+  };
+}
+
+function applyEdgeDelta(snap, delta) {
+  delta = Math.round(Math.max(snap.range.min, Math.min(snap.range.max, delta)));
+  const { side } = snap;
+  const horiz = side === 'left' || side === 'right';
+  const leading = side === 'left' || side === 'top';
+  const onEdge = new Set(snap.edgeIds);
+  if (horiz) VIEW_W = snap.w + delta; else VIEW_H = snap.h + delta;
+  state.vertices.forEach((v, i) => {
+    const o = snap.verts[i];
+    v.x = o.x; v.y = o.y;
+    if (leading) {
+      // Everything except the leading edge shifts to make room.
+      if (!onEdge.has(i)) { if (horiz) v.x += delta; else v.y += delta; }
+    } else if (onEdge.has(i)) {
+      if (horiz) v.x = VIEW_W; else v.y = VIEW_H;
+    }
+  });
+  if (leading) {
+    snap.bubbles.forEach(({ b, x, y }) => {
+      if (horiz) b.x = x + delta; else b.y = y + delta;
+      if (b.el) positionBubbleEl(b.el, b);
+    });
+    snap.tpl.forEach(t => {
+      const o = state.bubbleOverrides[t.id] || (state.bubbleOverrides[t.id] = {});
+      if (horiz) o.cx = t.cx + delta; else o.cy = t.cy + delta;
+    });
+  }
+  return delta;
+}
+
+function refreshAfterEdgeResize() {
+  applyViewportSize();
+  renderPanels();
+  renderHandles();
+  if (state.selectedPanelId) selectPanel(state.selectedPanelId);
+}
+
+function selectEdge(side) {
+  selectedEdge = side;
+  document.querySelectorAll('.ehandle').forEach(h => {
+    h.classList.toggle('selected', h.dataset.side === side);
+  });
+}
+
+document.querySelectorAll('.ehandle').forEach(h => {
+  h.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const side = h.dataset.side;
+    if (state.selectedPanelId || state.selectedBubbleId !== null) deselectAll();
+    selectEdge(side);
+    const snap = edgeSnapshot(side);
+    const horiz = side === 'left' || side === 'right';
+    const leading = side === 'left' || side === 'top';
+    const start = horiz ? e.clientX : e.clientY;
+    const scale = stageScale;
+    edgeDragActive = true;
+    h.classList.add('dragging');
+    dimsLabel.classList.add('active');
+    document.body.style.cursor = horiz ? 'ew-resize' : 'ns-resize';
+
+    function onMove(ev) {
+      const dClient = (horiz ? ev.clientX : ev.clientY) - start;
+      const delta = applyEdgeDelta(snap, (leading ? -dClient : dClient) / scale);
+      // Stage is centered, so a size change grows both sides visually.
+      // Translate by half the growth to pin the opposite edge in place.
+      const shift = (leading ? -1 : 1) * delta * scale / 2;
+      stageWrap.style.transform = horiz
+        ? `translateX(${shift}px) scale(${scale})`
+        : `translateY(${shift}px) scale(${scale})`;
+      refreshAfterEdgeResize();
+    }
+    function onUp() {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      edgeDragActive = false;
+      h.classList.remove('dragging');
+      dimsLabel.classList.remove('active');
+      document.body.style.cursor = '';
+      fitStage();
+      saveState();
+    }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  });
+});
+
+// Clicking anywhere other than an edge drops the edge selection.
+document.addEventListener('mousedown', (e) => {
+  if (selectedEdge && !e.target.closest('.ehandle')) selectEdge(null);
+}, true);
+
+// Arrow keys nudge the selected edge: 1 unit, Shift = 10. The arrow that
+// points away from the page moves the edge out; the opposite one moves it in.
+let dimsFlashTimer;
+document.addEventListener('keydown', (e) => {
+  if (!selectedEdge) return;
+  const t = document.activeElement;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+  if (e.key === 'Escape') { selectEdge(null); return; }
+  const outKey = { left: 'ArrowLeft', right: 'ArrowRight', top: 'ArrowUp', bottom: 'ArrowDown' }[selectedEdge];
+  const inKey  = { left: 'ArrowRight', right: 'ArrowLeft', top: 'ArrowDown', bottom: 'ArrowUp' }[selectedEdge];
+  if (e.key !== outKey && e.key !== inKey) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  const step = (e.shiftKey ? 10 : 1) * (e.key === outKey ? 1 : -1);
+  const snap = edgeSnapshot(selectedEdge);
+  const applied = applyEdgeDelta(snap, step);
+  if (!applied) { showToast('Edge can’t move further'); return; }
+  refreshAfterEdgeResize();
+  fitStage();
+  dimsLabel.classList.add('active');
+  clearTimeout(dimsFlashTimer);
+  dimsFlashTimer = setTimeout(() => dimsLabel.classList.remove('active'), 700);
+  saveState();
+}, true);
 
 // =====================================================================
 //  TOAST
@@ -3041,79 +3783,217 @@ function setFont(f) {
 }
 
 // =====================================================================
-//  PERSISTENCE — localStorage auto-save/restore
+//  PERSISTENCE — multi-project store (IndexedDB, see project-store.js)
 // =====================================================================
 //
-// Everything that can change lives here: mesh vertex positions, pasted
-// panel images (as base64 data URLs + scale), user-added bubbles from the
-// double-click ring, and the chosen font. Fires on every mutation.
-// Storage is per-origin (http://localhost:8790); reloading, closing/opening
-// the browser, or restarting the machine all preserve it. Clearing browser
-// data OR switching port will lose it. Cap ~5 MB.
+// Structure: PROJECTS_KEY holds { currentId, projects: [{ id, name,
+// updatedAt, data }] } where `data` is a snapshot of the current mesh,
+// panel images, overrides, user bubbles, and layoutKey.
+//
+// Auto-save fires on every mutation (throttled) and writes to the
+// currentId. New projects are created via createNewProject(layoutKey);
+// switching projects updates currentId. The projects.html gallery reads
+// the same key for its listing.
+//
+// A legacy STORAGE_KEY snapshot from the pre-multi-project version is
+// migrated on first boot so no work is lost.
 
-const STORAGE_KEY = 'designs-project-v1';
+const PROJECTS_KEY   = 'opencraw-projects-v1';
+const LEGACY_STORAGE = 'designs-project-v1';
 let saveTimer;
-function saveState() {
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    try {
-      const payload = {
-        v: state.vertices,
-        pi: state.panelImages,
-        bo: state.bubbleOverrides,
-        ub: state.bubbles.filter(b => b.stackId == null).map(b => ({
-          type: b.type || 'style',
-          styleKey: b.styleKey, x: b.x, y: b.y, w: b.w, h: b.h,
-          text: b.text, fillIndex: b.fillIndex, fontIndex: b.fontIndex,
-          fontScale: b.fontScale,
-          noShape: b.noShape,
-          src: b.src,
-        })),
-        f: currentFont,
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-    } catch (e) {
-      console.warn('save failed', e);
-    }
-  }, 150);
-}
 
-function loadState() {
+// Storage lives in project-store.js (IndexedDB + localStorage mirror).
+function loadProjectsStore() { return ProjectStore.load(); }
+function saveProjectsStore(store) { ProjectStore.save(store); }
+
+function migrateLegacyIfNeeded() {
+  const store = loadProjectsStore();
+  if (store.projects.length) return store;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch (e) { return null; }
+    const raw = localStorage.getItem(LEGACY_STORAGE);
+    if (!raw) return store;
+    const legacy = JSON.parse(raw);
+    const proj = {
+      id: newProjectId(),
+      name: 'Roommate Etiquette',
+      layoutKey: 'roommate',
+      updatedAt: Date.now(),
+      data: {
+        layoutKey: 'roommate',
+        viewW: 800, viewH: 626,
+        vertexRow: [0,0,0, 1,1,1,1,1, 2,2,2,2,2, 3,3,3,3,3, 4,4,4,4],
+        panels: legacy.panels || null,
+        ...legacy,
+      },
+    };
+    store.projects.push(proj);
+    store.currentId = proj.id;
+    saveProjectsStore(store);
+  } catch (e) { console.warn('legacy migration failed', e); }
+  return store;
 }
 
-// Save current project to a downloadable JSON file. User commits it to the
-// repo root as `project.json`; on next load, it's fetched automatically and
-// overrides localStorage — so state travels across machines / deployments.
-function serializeProject() {
+function newProjectId() {
+  return 'p_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+}
+
+function snapshotProjectData() {
   return {
-    v: state.vertices,
+    layoutKey: state.layoutKey,
+    viewW: VIEW_W, viewH: VIEW_H,
+    vertexRow: VERTEX_ROW.slice(),
+    panels: state.panels.map(p => ({ id: p.id, vs: p.vs.slice() })),
+    v: state.vertices.map(v => ({ ...v })),
     pi: state.panelImages,
     bo: state.bubbleOverrides,
     ub: state.bubbles.filter(b => b.stackId == null).map(b => ({
+      type: b.type || 'style',
       styleKey: b.styleKey, x: b.x, y: b.y, w: b.w, h: b.h,
       text: b.text, fillIndex: b.fillIndex, fontIndex: b.fontIndex,
+      fontScale: b.fontScale,
       noShape: b.noShape,
+      src: b.src,
     })),
     f: currentFont,
-    savedAt: new Date().toISOString(),
+    nextPanelId: state.nextPanelId,
   };
 }
 
+function saveState() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveStateNow, 150);
+}
+
+function saveStateNow() {
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  if (!state.projectId) return;      // No active project yet (picker open).
+  const store = loadProjectsStore();
+  const p = store.projects.find(pp => pp.id === state.projectId);
+  if (!p) return;
+  p.name = state.projectName || p.name || 'Untitled';
+  p.layoutKey = state.layoutKey;
+  p.updatedAt = Date.now();
+  p.data = snapshotProjectData();
+  store.currentId = state.projectId;
+  saveProjectsStore(store);
+}
+
+// Belt and braces so a refresh never loses work:
+//  - flush the debounced save synchronously when the page is hidden/unloaded;
+//  - also schedule a save after any user interaction, so a mutation path
+//    that forgot to call saveState() still gets persisted.
+window.addEventListener('pagehide', saveStateNow);
+window.addEventListener('beforeunload', saveStateNow);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') saveStateNow();
+});
+['mouseup', 'keyup', 'input', 'change', 'drop', 'wheel'].forEach(type => {
+  document.addEventListener(type, () => { if (state.projectId) saveState(); }, true);
+});
+
+function createNewProject(layoutKey, name) {
+  const store = loadProjectsStore();
+  const id = newProjectId();
+  const proj = {
+    id, name: name || defaultProjectName(layoutKey),
+    layoutKey, updatedAt: Date.now(), data: null,
+  };
+  store.projects.push(proj);
+  store.currentId = id;
+  saveProjectsStore(store);
+  // Reset state to fresh layout.
+  state.projectId = id;
+  state.projectName = proj.name;
+  state.bubbles.forEach(b => b.el && b.el.remove());
+  state.bubbles = [];
+  state.selectedBubbleId = null;
+  applyLayout(layoutKey, { wipeBubbles: true });
+  updateProjectTitleUI();
+  saveState();
+}
+
+function defaultProjectName(layoutKey) {
+  const spec = LAYOUTS[layoutKey];
+  const base = spec ? spec.name : 'Comic';
+  return base + ' · ' + new Date().toLocaleDateString();
+}
+
+function updateProjectTitleUI() {
+  const input = document.getElementById('project-name-input');
+  if (input && document.activeElement !== input) input.value = state.projectName || '';
+}
+
+function openProjectById(id) {
+  const store = loadProjectsStore();
+  const p = store.projects.find(pp => pp.id === id);
+  if (!p) { showToast('Project not found'); return false; }
+  store.currentId = id;
+  saveProjectsStore(store);
+  state.projectId = p.id;
+  state.projectName = p.name || 'Untitled';
+  if (p.data) {
+    applyProjectData(p.data);
+  } else {
+    applyLayout(p.layoutKey || 'blank', { wipeBubbles: true });
+  }
+  updateProjectTitleUI();
+  return true;
+}
+
+function applyProjectData(data) {
+  // Restore viewport + mesh.
+  const layoutKey = data.layoutKey || 'roommate';
+  state.layoutKey = layoutKey;
+  VIEW_W = data.viewW || 800;
+  VIEW_H = data.viewH || 626;
+  VERTEX_ROW = (data.vertexRow || []).slice();
+  state.vertices = (data.v || []).map(v => ({ ...v }));
+  if (data.panels) {
+    state.panels = data.panels.map(p => ({ id: p.id, vs: p.vs.slice() }));
+  } else {
+    // Legacy: fall back to roommate panels.
+    state.panels = initialPanels.map((p, i) => ({ id: 'p' + i, vs: [...p.vs] }));
+  }
+  state.nextPanelId = data.nextPanelId || state.panels.length;
+  state.panelImages = data.pi || {};
+  state.bubbleOverrides = data.bo || {};
+  currentFont = data.f || currentFont;
+  state.selectedPanelId = null;
+  state.selectedTemplateId = null;
+  applyViewportSize();
+  // Wipe existing bubble DOM.
+  state.bubbles.forEach(b => b.el && b.el.remove());
+  state.bubbles = [];
+  state.selectedBubbleId = null;
+  renderPanels();
+  renderHandles();
+  (data.ub || []).forEach(b => {
+    if (b.type === 'image') {
+      placeBubble({ type: 'image', src: b.src, x: b.x, y: b.y, w: b.w, h: b.h, focus: false });
+    } else {
+      placeBubble({ ...b, style: b.styleKey, focus: false });
+    }
+  });
+  fitStage();
+}
+
+// Save current project to a downloadable JSON file (import/export).
 function downloadProject() {
-  const payload = JSON.stringify(serializeProject(), null, 2);
+  const payload = JSON.stringify({
+    name: state.projectName,
+    layoutKey: state.layoutKey,
+    savedAt: new Date().toISOString(),
+    ...snapshotProjectData(),
+  }, null, 2);
   const blob = new Blob([payload], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'project.json';
+  a.download = (state.projectName || 'project').replace(/[^\w\-]+/g, '_') + '.json';
   document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(url);
-  showToast('Downloaded project.json — commit it to your repo');
+  showToast('Exported ' + a.download);
 }
 
 function loadProjectFromFile(file) {
@@ -3121,38 +4001,28 @@ function loadProjectFromFile(file) {
   reader.onload = () => {
     try {
       const saved = JSON.parse(reader.result);
-      applyLoadedState(saved);
-      showToast('Loaded project.json');
+      // Import as a NEW project (so we don't clobber the current one).
+      const store = loadProjectsStore();
+      const id = newProjectId();
+      const proj = {
+        id,
+        name: saved.name || 'Imported',
+        layoutKey: saved.layoutKey || 'roommate',
+        updatedAt: Date.now(),
+        data: saved,
+      };
+      store.projects.push(proj);
+      store.currentId = id;
+      saveProjectsStore(store);
+      openProjectById(id);
+      showToast('Imported as new project');
     } catch (e) { showToast('Bad JSON: ' + e.message); }
   };
   reader.readAsText(file);
 }
 
-function applyLoadedState(saved) {
-  if (!saved) return;
-  if (saved.v)  state.vertices = saved.v;
-  if (saved.pi) state.panelImages = saved.pi;
-  if (saved.bo) state.bubbleOverrides = saved.bo;
-  if (saved.f)  currentFont = saved.f;
-  // Wipe user-added bubbles then re-place from payload.
-  state.bubbles.forEach(b => b.el && b.el.remove());
-  state.bubbles = [];
-  renderPanels();
-  renderHandles();
-  if (saved.ub) {
-    saved.ub.forEach(b => {
-      if (b.type === 'image') {
-        placeBubble({ type: 'image', src: b.src, x: b.x, y: b.y, w: b.w, h: b.h, focus: false });
-      } else {
-        placeBubble({ ...b, style: b.styleKey, focus: false });
-      }
-    });
-  }
-  saveState();
-}
-
 // Try to fetch project.json shipped with the site (from git repo / deployment).
-// Falls back to localStorage if not found or fetch fails.
+// Migrated to a project on first boot so it shows in the gallery too.
 async function tryFetchProjectJson() {
   try {
     const res = await fetch('project.json', { cache: 'no-store' });
@@ -3432,32 +4302,229 @@ async function exportPDF(format) {
 }
 
 // =====================================================================
+//  LAYOUT ACTIONS — add row, split panel, change layout
+// =====================================================================
+
+// Extend the mesh by a full-width row at the bottom. Every vertex on the
+// current bottom edge is retagged as internal ('left'/'right'/null based
+// on position), then a fresh corner-tagged bottom edge is added and the
+// new panel is stitched together with the OLD bottom row as its top
+// edge (so shared X-vertices survive and can still be dragged).
+function addRowBelow() {
+  const maxRow = Math.max(...VERTEX_ROW);
+  const bottomIds = [];
+  VERTEX_ROW.forEach((r, i) => { if (r === maxRow) bottomIds.push(i); });
+  if (!bottomIds.length) return;
+  // Sort by X so the new panel polygon is a valid CW winding.
+  bottomIds.sort((a, b) => state.vertices[a].x - state.vertices[b].x);
+  // Retag old bottom-edge vertices as interior mesh points.
+  bottomIds.forEach(vid => {
+    const v = state.vertices[vid];
+    if (v.edge === 'corner-bl')      v.edge = 'left';
+    else if (v.edge === 'corner-br') v.edge = 'right';
+    else if (v.edge === 'bottom')    v.edge = null;
+  });
+  const newRowH  = Math.max(180, VIEW_H * 0.25);
+  const newBotY  = VIEW_H + newRowH;
+  const oldBotY  = state.vertices[bottomIds[0]].y;
+  // Two new corner verts at (0, newBotY) and (VIEW_W, newBotY).
+  const blId = state.vertices.length;
+  state.vertices.push({ x: 0,      y: newBotY, edge: 'corner-bl' });
+  VERTEX_ROW.push(maxRow + 1);
+  const brId = state.vertices.length;
+  state.vertices.push({ x: VIEW_W, y: newBotY, edge: 'corner-br' });
+  VERTEX_ROW.push(maxRow + 1);
+  // Polygon: top edge = old bottom row (L→R), bottom edge = new corners (R→L).
+  const newPanel = {
+    id: 'p_new_' + (state.nextPanelId++),
+    vs: [...bottomIds, brId, blId],
+  };
+  state.panels.push(newPanel);
+  VIEW_H = newBotY;
+  applyViewportSize();
+  renderPanels();
+  renderHandles();
+  fitStage();
+  saveState();
+  showToast('Row added at bottom');
+}
+
+// Split the currently selected panel vertically (`v`) or horizontally
+// (`h`). Only works for panels that are simple 4-vertex rectangles whose
+// top and bottom edges (for `v` split) or left and right edges (for `h`
+// split) are shared with at most one adjacent panel, and that panel must
+// also be a simple rectangle with matching corners. Anything more
+// exotic (like the 5-vertex slanted-gutter panels in the roommate
+// layout) is bounced back with a toast.
+function splitSelectedPanel(dir) {
+  if (!state.selectedPanelId) { showToast('Select a panel first'); return; }
+  const panel = state.panels.find(p => p.id === state.selectedPanelId);
+  if (!panel || panel.vs.length !== 4) {
+    showToast('This panel is too complex to split — try Add Row instead');
+    return;
+  }
+  // Pull the 4 corners as {vid, x, y}.
+  const c = panel.vs.map(vid => ({ vid, x: state.vertices[vid].x, y: state.vertices[vid].y }));
+  const minX = Math.min(...c.map(p => p.x)), maxX = Math.max(...c.map(p => p.x));
+  const minY = Math.min(...c.map(p => p.y)), maxY = Math.max(...c.map(p => p.y));
+  const tolerance = 1;
+  const isRect = c.every(p => (Math.abs(p.x - minX) < tolerance || Math.abs(p.x - maxX) < tolerance)
+                            && (Math.abs(p.y - minY) < tolerance || Math.abs(p.y - maxY) < tolerance));
+  if (!isRect) { showToast('Panel isn\'t axis-aligned — can\'t split cleanly'); return; }
+  const tl = c.find(p => Math.abs(p.x - minX) < tolerance && Math.abs(p.y - minY) < tolerance);
+  const tr = c.find(p => Math.abs(p.x - maxX) < tolerance && Math.abs(p.y - minY) < tolerance);
+  const br = c.find(p => Math.abs(p.x - maxX) < tolerance && Math.abs(p.y - maxY) < tolerance);
+  const bl = c.find(p => Math.abs(p.x - minX) < tolerance && Math.abs(p.y - maxY) < tolerance);
+  if (!tl || !tr || !br || !bl) { showToast('Can\'t split — corners unreadable'); return; }
+
+  if (dir === 'v') {
+    // Vertical split: new vertex on top edge and bottom edge at midX.
+    const midX = (minX + maxX) / 2;
+    const topRow = VERTEX_ROW[tl.vid];
+    const botRow = VERTEX_ROW[bl.vid];
+    const topVid = state.vertices.length;
+    state.vertices.push({ x: midX, y: minY, edge: state.vertices[tl.vid].edge === 'corner-tl' || state.vertices[tl.vid].edge === 'top' ? 'top' : null });
+    VERTEX_ROW.push(topRow);
+    const botVid = state.vertices.length;
+    state.vertices.push({ x: midX, y: maxY, edge: state.vertices[bl.vid].edge === 'corner-bl' || state.vertices[bl.vid].edge === 'bottom' ? 'bottom' : null });
+    VERTEX_ROW.push(botRow);
+    // Insert new vertex into any adjacent panel sharing the top edge (tl→tr) or bottom edge (bl→br).
+    insertVertexIntoSharedEdge(panel, tl.vid, tr.vid, topVid);
+    insertVertexIntoSharedEdge(panel, bl.vid, br.vid, botVid);
+    // Replace panel with two.
+    const idx = state.panels.indexOf(panel);
+    state.panels.splice(idx, 1);
+    state.panels.push({ id: 'p_new_' + (state.nextPanelId++), vs: [tl.vid, topVid, botVid, bl.vid] });
+    state.panels.push({ id: 'p_new_' + (state.nextPanelId++), vs: [topVid, tr.vid, br.vid, botVid] });
+  } else {
+    // Horizontal split: new vertex on left edge and right edge at midY.
+    // A brand-new row is inserted; existing rows below shift up by 1 index.
+    const midY = (minY + maxY) / 2;
+    const topRow = VERTEX_ROW[tl.vid];
+    const botRow = VERTEX_ROW[bl.vid];
+    if (botRow !== topRow + 1) {
+      showToast('Non-adjacent rows — can\'t split horizontally here'); return;
+    }
+    // Shift every vertex on rows >= botRow up by 1 to make room for the new row.
+    for (let i = 0; i < VERTEX_ROW.length; i++) if (VERTEX_ROW[i] >= botRow) VERTEX_ROW[i] += 1;
+    const newRow = botRow;
+    const leftVid = state.vertices.length;
+    state.vertices.push({ x: minX, y: midY, edge: state.vertices[tl.vid].edge === 'corner-tl' || state.vertices[tl.vid].edge === 'left' ? 'left' : null });
+    VERTEX_ROW.push(newRow);
+    const rightVid = state.vertices.length;
+    state.vertices.push({ x: maxX, y: midY, edge: state.vertices[tr.vid].edge === 'corner-tr' || state.vertices[tr.vid].edge === 'right' ? 'right' : null });
+    VERTEX_ROW.push(newRow);
+    insertVertexIntoSharedEdge(panel, tl.vid, bl.vid, leftVid);
+    insertVertexIntoSharedEdge(panel, tr.vid, br.vid, rightVid);
+    const idx = state.panels.indexOf(panel);
+    state.panels.splice(idx, 1);
+    state.panels.push({ id: 'p_new_' + (state.nextPanelId++), vs: [tl.vid, tr.vid, rightVid, leftVid] });
+    state.panels.push({ id: 'p_new_' + (state.nextPanelId++), vs: [leftVid, rightVid, br.vid, bl.vid] });
+  }
+  state.selectedPanelId = null;
+  renderPanels();
+  renderHandles();
+  saveState();
+  showToast('Panel split');
+}
+
+// Find any panel (other than `exclude`) that has both `a` and `b` as
+// consecutive vertices in its polygon, and insert `newVid` between them
+// so both panels share the new vertex.
+function insertVertexIntoSharedEdge(exclude, a, b, newVid) {
+  state.panels.forEach(p => {
+    if (p === exclude) return;
+    const n = p.vs.length;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      if ((p.vs[i] === a && p.vs[j] === b) || (p.vs[i] === b && p.vs[j] === a)) {
+        p.vs.splice(j, 0, newVid);
+        return;
+      }
+    }
+  });
+}
+
+// =====================================================================
+//  LAYOUT PICKER MODAL
+// =====================================================================
+
+const layoutModal = () => document.getElementById('layout-modal');
+
+function openLayoutPicker(opts = {}) {
+  renderLayoutTiles(opts);
+  layoutModal().classList.add('open');
+}
+function closeLayoutPicker() {
+  layoutModal().classList.remove('open');
+}
+
+function renderLayoutTiles(opts) {
+  const grid = document.getElementById('layout-grid');
+  grid.innerHTML = '';
+  Object.entries(LAYOUTS).forEach(([key, spec]) => {
+    // Skip roommate in the "change layout" flow — it's specific to the
+    // pre-shipped comic and applying it would blow away user work.
+    if (opts.hideRoommate && key === 'roommate') return;
+    const tile = document.createElement('div');
+    tile.className = 'layout-tile';
+    tile.appendChild(renderLayoutThumb(key));
+    const name = document.createElement('div');
+    name.className = 'lt-name';
+    name.textContent = spec.name;
+    tile.appendChild(name);
+    const desc = document.createElement('div');
+    desc.className = 'lt-desc';
+    desc.textContent = spec.desc;
+    tile.appendChild(desc);
+    tile.addEventListener('click', () => {
+      closeLayoutPicker();
+      if (opts.mode === 'change') {
+        // Change layout of current project — wipes mesh, keeps user bubbles.
+        applyLayout(key);
+        saveState();
+        showToast('Layout changed to ' + spec.name);
+      } else {
+        createNewProject(key);
+      }
+    });
+    grid.appendChild(tile);
+  });
+}
+
+// Small SVG thumbnail of a layout's panels, for the picker + gallery.
+function renderLayoutThumb(layoutKey) {
+  const l = LAYOUTS[layoutKey].build();
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const s = document.createElementNS(svgNS, 'svg');
+  s.setAttribute('viewBox', `0 0 ${l.viewW} ${l.viewH}`);
+  s.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+  const bg = document.createElementNS(svgNS, 'rect');
+  bg.setAttribute('x', 0); bg.setAttribute('y', 0);
+  bg.setAttribute('width', l.viewW); bg.setAttribute('height', l.viewH);
+  bg.setAttribute('fill', '#faf1e5');
+  s.appendChild(bg);
+  l.panels.forEach(p => {
+    const pts = p.vs.map(vid => `${l.vertices[vid].x},${l.vertices[vid].y}`).join(' ');
+    const poly = document.createElementNS(svgNS, 'polygon');
+    poly.setAttribute('points', pts);
+    poly.setAttribute('fill', '#ffffff');
+    poly.setAttribute('stroke', '#1a1815');
+    poly.setAttribute('stroke-width', '8');
+    poly.setAttribute('stroke-linejoin', 'round');
+    s.appendChild(poly);
+  });
+  return s;
+}
+
+// =====================================================================
 //  INIT
 // =====================================================================
 
 document.fonts.ready.then(async () => {
-  // Priority: project.json in repo → localStorage → defaults.
-  const shipped = await tryFetchProjectJson();
-  const saved = shipped || loadState();
-  if (saved) {
-    if (saved.v)  state.vertices = saved.v;
-    if (saved.pi) state.panelImages = saved.pi;
-    if (saved.bo) state.bubbleOverrides = saved.bo;
-    if (saved.f)  currentFont = saved.f;
-  }
-  renderPanels();
-  renderHandles();
-  if (saved && saved.ub) {
-    saved.ub.forEach(b => {
-      if (b.type === 'image') {
-        placeBubble({ type: 'image', src: b.src, x: b.x, y: b.y, w: b.w, h: b.h, focus: false });
-      } else {
-        placeBubble({ ...b, style: b.styleKey, focus: false });
-      }
-    });
-  }
-  fitStage();
-  renderStyleChips();
+  await ProjectStore.init();
+  // Wire the shared sidebar controls first so buttons work even before a
+  // project is opened.
   document.getElementById('export-a4').addEventListener('click', () => exportPDF('a4'));
   document.getElementById('export-a3').addEventListener('click', () => exportPDF('a3'));
   document.getElementById('reset-text').addEventListener('click', resetTextOnly);
@@ -3467,8 +4534,109 @@ document.fonts.ready.then(async () => {
   fileInput.addEventListener('change', (e) => {
     if (e.target.files && e.target.files[0]) loadProjectFromFile(e.target.files[0]);
   });
-  if (shipped) showToast('Loaded project.json from repo');
+  document.getElementById('add-row').addEventListener('click', addRowBelow);
+  document.getElementById('split-panel-v').addEventListener('click', () => splitSelectedPanel('v'));
+  document.getElementById('split-panel-h').addEventListener('click', () => splitSelectedPanel('h'));
+  document.getElementById('change-layout').addEventListener('click', () => openLayoutPicker({ mode: 'change', hideRoommate: false }));
+  document.getElementById('new-project').addEventListener('click', () => openLayoutPicker({ mode: 'new' }));
+  document.getElementById('open-projects').addEventListener('click', () => { window.location.href = 'projects.html'; });
+  // Live-rename current project as the user types.
+  const nameInput = document.getElementById('project-name-input');
+  nameInput.addEventListener('input', () => {
+    state.projectName = nameInput.value.trim() || 'Untitled';
+    saveState();
+  });
+  nameInput.addEventListener('mousedown', e => e.stopPropagation());
+  // Close layout modal on backdrop click / close button.
+  layoutModal().addEventListener('click', (e) => {
+    if (e.target === layoutModal()) closeLayoutPicker();
+  });
+  layoutModal().querySelector('.close-x').addEventListener('click', closeLayoutPicker);
+
+  renderStyleChips();
+
+  // Route: ?project=<id> opens a specific project; ?new=1 forces the picker;
+  // otherwise resume the last-current project, migrating the legacy slot on
+  // first boot, or fall back to the shipped project.json.
+  const params = new URLSearchParams(window.location.search);
+  const wantId = params.get('project');
+  const wantNew = params.get('new') === '1';
+
+  if (wantId) {
+    if (!openProjectById(wantId)) openLayoutPicker({ mode: 'new' });
+    return;
+  }
+  if (wantNew) {
+    openLayoutPicker({ mode: 'new' });
+    // Render the default mesh in the background so the picker isn't
+    // sitting on top of an empty stage.
+    applyLayout('roommate');
+    return;
+  }
+  const store = migrateLegacyIfNeeded();
+  if (store.currentId && store.projects.find(p => p.id === store.currentId)) {
+    openProjectById(store.currentId);
+  } else if (store.projects.length) {
+    openProjectById(store.projects[0].id);
+  } else {
+    // First-time visitor with no saves — try shipped project.json, else
+    // seed a fresh roommate project.
+    const shipped = await tryFetchProjectJson();
+    if (shipped) {
+      const id = newProjectId();
+      const proj = {
+        id, name: shipped.name || 'Roommate Etiquette',
+        layoutKey: shipped.layoutKey || 'roommate',
+        updatedAt: Date.now(),
+        data: shipped,
+      };
+      const s2 = loadProjectsStore();
+      s2.projects.push(proj);
+      s2.currentId = id;
+      saveProjectsStore(s2);
+      openProjectById(id);
+      showToast('Loaded project.json from repo');
+    } else {
+      createNewProject('roommate', 'Roommate Etiquette');
+    }
+  }
 });
+
+// =====================================================================
+//  SIDEBAR / HELP MODAL WIRING
+// =====================================================================
+(function wireSidebarAndHelp() {
+  const toggle = document.getElementById('sidebar-toggle');
+  const helpBtn = document.getElementById('help-button');
+  const modal = document.getElementById('help-modal');
+  toggle.addEventListener('mousedown', (e) => e.stopPropagation());
+  toggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.body.classList.toggle('sidebar-collapsed');
+  });
+  helpBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+  helpBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    modal.classList.add('open');
+  });
+  modal.addEventListener('click', (e) => {
+    // Backdrop click (not inside .card) closes the modal.
+    if (e.target === modal) modal.classList.remove('open');
+  });
+  modal.querySelector('.close-x').addEventListener('click', (e) => {
+    e.stopPropagation();
+    modal.classList.remove('open');
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal.classList.contains('open')) {
+      modal.classList.remove('open');
+    }
+    const lm = document.getElementById('layout-modal');
+    if (e.key === 'Escape' && lm && lm.classList.contains('open')) {
+      lm.classList.remove('open');
+    }
+  });
+})();
 </script>
 </body>
 </html>
